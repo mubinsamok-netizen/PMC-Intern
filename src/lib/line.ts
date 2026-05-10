@@ -54,7 +54,6 @@ type LineMessage =
 
 const colors = {
   brand: "#E84924",
-  brandDark: "#B32017",
   brandSoft: "#FFF5F1",
   ink: "#20242C",
   muted: "#6F7787",
@@ -63,15 +62,16 @@ const colors = {
 };
 
 const mascots = {
-  wave: "/mascots/mascot-wave.png?v=20260511",
-  bell: "/mascots/mascot-bell.png?v=20260511",
-  thumbs: "/mascots/mascot-thumbs.png?v=20260511",
-  tools: "/mascots/mascot-tools.png?v=20260511",
+  wave: "/mascots/mascot-wave.png?v=20260511b",
+  bell: "/mascots/mascot-bell.png?v=20260511b",
+  thumbs: "/mascots/mascot-thumbs.png?v=20260511b",
+  tools: "/mascots/mascot-tools.png?v=20260511b",
 };
 
 function publicAssetUrl(path: string) {
   if (/^https:\/\//i.test(path)) return path;
-  return `${env.publicAppUrl}${path.startsWith("/") ? path : `/${path}`}`;
+  const assetBaseUrl = "https://pmc-intern-web.vercel.app";
+  return `${assetBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 async function pushLine(message: LineMessage) {
@@ -161,20 +161,6 @@ function infoRow(label: string, value: string, strong = false): FlexComponent {
   };
 }
 
-function makeButton(label: string, text: string, color = colors.brandDark): FlexComponent {
-  return {
-    type: "button",
-    style: "primary",
-    height: "sm",
-    color,
-    action: {
-      type: "message",
-      label,
-      text,
-    },
-  };
-}
-
 function makeCuteCard(options: {
   altText: string;
   title: string;
@@ -183,8 +169,6 @@ function makeCuteCard(options: {
   mascot?: string;
   rows: FlexComponent[];
   note?: string;
-  buttonLabel?: string;
-  buttonText?: string;
   accentColor?: string;
 }): LineMessage {
   const accent = options.accentColor || colors.brand;
@@ -224,7 +208,7 @@ function makeCuteCard(options: {
                     {
                       type: "image",
                       url: publicAssetUrl(options.mascot),
-                      size: "84px",
+                      size: "full",
                       aspectRatio: "1:1",
                       aspectMode: "fit",
                     },
@@ -268,13 +252,6 @@ function makeCuteCard(options: {
     ];
   }
 
-  if (options.buttonLabel && options.buttonText) {
-    bodyContents[1].contents = [
-      ...(bodyContents[1].contents as FlexComponent[]),
-      makeButton(options.buttonLabel, options.buttonText, accent === colors.warning ? colors.warning : colors.brandDark),
-    ];
-  }
-
   return {
     type: "flex",
     altText: options.altText,
@@ -310,8 +287,6 @@ export async function notifyLineCheckIn(record: LineAttendancePayload) {
       infoRow("สถานะ", checkInStatus(record), true),
     ],
     note: record.location_address ? `สถานที่: ${record.location_address}` : "ยังไม่ได้ระบุสถานที่",
-    buttonLabel: "รับทราบ",
-    buttonText: "รับทราบเช็คอิน",
     accentColor: record.is_late ? colors.warning : colors.brand,
   }));
 }
@@ -332,8 +307,6 @@ export async function notifyLineCheckOut(record: LineAttendancePayload) {
       infoRow("รวมเวลา", record.total_hours_display || "-", true),
     ],
     note: "ขอบคุณสำหรับวันนี้ครับ",
-    buttonLabel: "ปิดงานวันนี้",
-    buttonText: "รับทราบเช็คเอาท์",
   }));
 }
 
@@ -353,8 +326,6 @@ export async function notifyLineLeaveRequest(record: LineLeaveRequestPayload) {
       infoRow("ถึง", formatThaiDate(record.end_date)),
     ],
     note: "เหตุผลจะแสดงเฉพาะในระบบเพื่อความเป็นส่วนตัว",
-    buttonLabel: "ตรวจคำขอ",
-    buttonText: "ตรวจคำขอลา",
   }));
 }
 
@@ -374,8 +345,6 @@ export async function notifyLineLeaveReview(record: LineLeaveRequestPayload) {
       infoRow("ผู้ตรวจ", record.reviewed_by || "-"),
     ],
     note: "หมายเหตุจะแสดงเฉพาะในระบบเพื่อความเป็นส่วนตัว",
-    buttonLabel: "รับทราบ",
-    buttonText: "รับทราบผลคำขอลา",
     accentColor: approved ? colors.brand : colors.warning,
   }));
 }
@@ -396,8 +365,6 @@ export async function notifyLineDailySummary(summary: LineSummaryPayload) {
       infoRow("คำขอลารอตรวจ", `${summary.pendingLeave} รายการ`, summary.pendingLeave > 0),
     ],
     note: `ประจำวันที่ ${formatThaiDate(summary.date)}`,
-    buttonLabel: "ดูสรุป",
-    buttonText: "ดูสรุปการฝึกงาน",
   }));
 }
 
@@ -417,8 +384,6 @@ export async function notifyLineCheckInReminder(payload: LineReminderPayload) {
       }),
     ],
     note: `ประจำวันที่ ${formatThaiDate(payload.date)}`,
-    buttonLabel: "รับทราบ",
-    buttonText: "รับทราบเตือนเช็คอิน",
     accentColor: colors.warning,
   }));
 }
@@ -439,8 +404,6 @@ export async function notifyLineCheckOutReminder(payload: LineReminderPayload) {
       }),
     ],
     note: `ประจำวันที่ ${formatThaiDate(payload.date)}`,
-    buttonLabel: "รับทราบ",
-    buttonText: "รับทราบเตือนเช็คเอาท์",
     accentColor: colors.warning,
   }));
 }
