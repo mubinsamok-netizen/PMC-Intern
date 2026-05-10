@@ -547,6 +547,16 @@ export default function Home() {
 
   const authHeaders = useMemo(() => token ? { Authorization: `Bearer ${token}` } : undefined, [token]);
 
+  const messageIsSuccess = message.includes("สำเร็จ") || message.includes("เรียบร้อย") || message.includes("แล้ว");
+
+  useEffect(() => {
+    if (!me || !message) return;
+    const timeout = window.setTimeout(() => {
+      setMessage((current) => (current === message ? "" : current));
+    }, messageIsSuccess ? 3600 : 5600);
+    return () => window.clearTimeout(timeout);
+  }, [me, message, messageIsSuccess]);
+
   const reportSummary = useMemo(() => {
     const internKeys = new Set(reportRows.map((row) => row.user_id || `${attendanceCode(row)}:${row.full_name}`));
     const totalHours = reportRows.reduce((sum, row) => sum + numericHours(row), 0);
@@ -710,8 +720,16 @@ export default function Home() {
         ...(options.headers || {}),
       },
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || "ดำเนินการไม่สำเร็จ");
+    const body = await res.text();
+    let data: any = { ok: res.ok };
+    if (body.trim()) {
+      try {
+        data = JSON.parse(body);
+      } catch {
+        throw new Error(`ระบบตอบกลับข้อมูลไม่ถูกต้องจาก ${path} (${res.status})`);
+      }
+    }
+    if (!data.ok) throw new Error(data.error || `ระบบตอบกลับไม่สำเร็จจาก ${path} (${res.status})`);
     return data;
   }
 
@@ -1516,8 +1534,8 @@ export default function Home() {
         </header>
 
         {message && (
-          <div className="page-notice">
-            <Mascot variant={message.includes("สำเร็จ") || message.includes("เรียบร้อย") ? "thumbs" : "bell"} size="xs" animation="pop" />
+          <div className={messageIsSuccess ? "page-toast success" : "page-toast error"} role="status" aria-live="polite">
+            <Mascot variant={messageIsSuccess ? "thumbs" : "bell"} size="xs" animation="pop" />
             <span>{message}</span>
           </div>
         )}

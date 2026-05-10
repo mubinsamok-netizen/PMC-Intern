@@ -16,7 +16,7 @@ const publicAppUrlFallback = vercelUrl
   ? `https://${vercelUrl}`
   : nextAuthUrl.startsWith("https://")
     ? nextAuthUrl
-    : "https://pmc-intern.vercel.app";
+    : "https://pmc-intern-web.vercel.app";
 
 export const env = {
   appName: readEnv("NEXT_PUBLIC_APP_NAME", "PMC Intern Attendance"),

@@ -63,10 +63,10 @@ const colors = {
 };
 
 const mascots = {
-  wave: "/mascots/mascot-wave.png",
-  bell: "/mascots/mascot-bell.png",
-  thumbs: "/mascots/mascot-thumbs.png",
-  tools: "/mascots/mascot-tools.png",
+  wave: "/mascots/mascot-wave.png?v=20260511",
+  bell: "/mascots/mascot-bell.png?v=20260511",
+  thumbs: "/mascots/mascot-thumbs.png?v=20260511",
+  tools: "/mascots/mascot-tools.png?v=20260511",
 };
 
 function publicAssetUrl(path: string) {
@@ -212,13 +212,23 @@ function makeCuteCard(options: {
             },
             options.mascot
               ? {
-                  type: "image",
-                  url: publicAssetUrl(options.mascot),
+                  type: "box",
+                  layout: "vertical",
+                  width: "84px",
+                  height: "84px",
                   flex: 0,
-                  size: "72px",
-                  aspectRatio: "1:1",
-                  aspectMode: "fit",
                   margin: "md",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  contents: [
+                    {
+                      type: "image",
+                      url: publicAssetUrl(options.mascot),
+                      size: "84px",
+                      aspectRatio: "1:1",
+                      aspectMode: "fit",
+                    },
+                  ],
                 }
               : flexText("🐧", {
                   flex: 0,
