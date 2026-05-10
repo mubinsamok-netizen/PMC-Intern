@@ -264,9 +264,15 @@ function mapUrl(row: Attendance) {
 }
 
 function statusText(row: Attendance) {
-  if (row.status === "checked_out") return "ออกแล้ว";
-  if (row.status === "checked_in") return row.is_late ? "เช็คอินแล้ว / สาย" : "เช็คอินแล้ว";
+  if (row.status === "checked_out") return row.is_late ? "เช็คเอาท์แล้ว · ล่าช้า" : "เช็คเอาท์แล้ว";
+  if (row.status === "checked_in") return row.is_late ? "เช็คอินแล้ว · ล่าช้า" : "เช็คอินแล้ว";
   return row.status || "-";
+}
+
+function statusChipClass(row: Attendance) {
+  if (row.is_late) return "chip warning";
+  if (row.status === "checked_out") return "chip success";
+  return "chip";
 }
 
 function leaveStatusText(status: string) {
@@ -336,6 +342,17 @@ function formatHoursValue(value: number) {
   return `${h} ชม. ${m} นาที`;
 }
 
+function formatThaiDate(value?: string) {
+  const date = parseDateOnly(value || "");
+  if (!date) return value || "-";
+  return new Intl.DateTimeFormat("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+}
+
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
@@ -402,11 +419,11 @@ function profileInitials(name?: string) {
 }
 
 export default function Home() {
-  const [email, setEmail] = useState("admin@pichayamongkolconstruction.com");
-  const [password, setPassword] = useState("Admin@2026");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
   const [me, setMe] = useState<User | null>(null);
-  const [view, setView] = useState<ViewKey>("attendance");
+  const [view, setView] = useState<ViewKey>("dashboard");
   const [users, setUsers] = useState<User[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [accountAttendance, setAccountAttendance] = useState<Attendance[]>([]);
@@ -622,7 +639,7 @@ export default function Home() {
       localStorage.setItem("pmc_token", data.token);
       setToken(data.token);
       setMe(data.user);
-      setView(data.user.role === "admin" ? "dashboard" : "checkin");
+      setView("dashboard");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -774,7 +791,7 @@ export default function Home() {
       "เวลาออก",
       "ชั่วโมง",
       "สถานะ",
-      "สาย",
+      "เช็คอินล่าช้า",
       "สถานที่",
       "หมายเหตุ",
     ];
@@ -1134,6 +1151,7 @@ export default function Home() {
     setPasswordForm(emptyPasswordForm);
     setProfileForm({ full_name: "", phone: "", profileImageBase64: "" });
     setToday(null);
+    setMessage("");
   }
 
   useEffect(() => {
@@ -1145,7 +1163,7 @@ export default function Home() {
       .then((data) => {
         if (data.ok) {
           setMe(data.user);
-          setView(data.user.role === "admin" ? "dashboard" : "checkin");
+          setView("dashboard");
         }
       })
       .catch(() => undefined);
@@ -1155,6 +1173,10 @@ export default function Home() {
     if (!me || !token) return;
     loadNotifications().catch((error) => setMessage(error.message));
     if (view === "dashboard" && me.role === "admin") loadDashboard().catch((error) => setMessage(error.message));
+    if (view === "dashboard" && me.role === "intern") {
+      loadAccountData().catch((error) => setMessage(error.message));
+      loadToday().catch((error) => setMessage(error.message));
+    }
     if (view === "users" && me.role === "admin") loadUsers().catch((error) => setMessage(error.message));
     if (view === "attendance") loadAttendance().catch((error) => setMessage(error.message));
     if (view === "leave") loadLeaveRequests().catch((error) => setMessage(error.message));
@@ -1188,39 +1210,39 @@ export default function Home() {
   if (!me) {
     return (
       <main className="login-shell">
-        <section className="brand-panel">
-          <div className="brand-top">
-            <img src="/logo.png" alt="Pichayamongkol Construction" />
-          </div>
-          <div className="brand-copy">
-            <span className="brand-line" />
-            <div>
-              <h1>PMC Intern Attendance</h1>
-              <p>ระบบลงเวลาและติดตามการฝึกงานสำหรับบริษัท พิชญมงคล คอนสตรัคชั่น จำกัด</p>
+        <section className="auth-stage" aria-label="เข้าสู่ระบบ PMC CONNEXT">
+          <div className="auth-card auth-main">
+            <div className="auth-welcome">
+              <span>Welcome to</span>
+              <div className="auth-mark">
+                <img src="/mascot-wave.png" alt="" aria-hidden="true" />
+              </div>
+              <h1>PMC CONNEXT</h1>
+              <p>ระบบลงเวลาและติดตามการฝึกงาน</p>
+              <div className="auth-meta" aria-hidden="true">
+                <span>INTERN PORTAL</span>
+                <span>HR SYSTEM</span>
+              </div>
             </div>
-          </div>
-          <div className="brand-pills" aria-hidden="true" />
-        </section>
 
-        <section className="login-panel">
-          <form className="login-card" onSubmit={login}>
-            <img src="/login-logo.png" alt="Pichayamongkol Construction" className="login-logo" />
-            <h2>เข้าสู่ระบบ</h2>
-            <p>ใช้บัญชีที่ลงทะเบียนไว้สำหรับตรวจสอบและบันทึกเวลาฝึกงาน</p>
-            <label>
-              อีเมลองค์กร
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
-            </label>
-            <label>
-              รหัสผ่าน
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="รหัสผ่าน" />
-            </label>
-            {message && <div className="notice">{message}</div>}
-            <button disabled={loading} type="submit">
-              <LogIn size={18} /> {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
-            </button>
-            <small><LockKeyhole size={14} /> ระบบใหม่นี้อ่านรหัสผ่านจากคอลัมน์ password ใน Google Sheet</small>
-          </form>
+            <form className="auth-form" onSubmit={login}>
+              <h2>เข้าสู่ระบบ</h2>
+              <p>ใช้บัญชีที่ได้รับอนุญาตเพื่อบันทึกเวลาและติดตามการฝึกงาน</p>
+              <label>
+                อีเมล
+                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmail.com" autoComplete="username" />
+              </label>
+              <label>
+                รหัสผ่าน
+                <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="รหัสผ่าน" autoComplete="current-password" />
+              </label>
+              {message && <div className="notice">{message}</div>}
+              <button disabled={loading} type="submit">
+                <LogIn size={18} /> {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
+              </button>
+              <small><LockKeyhole size={14} /> หากเข้าสู่ระบบไม่ได้ กรุณาติดต่อผู้ดูแลระบบ</small>
+            </form>
+          </div>
         </section>
       </main>
     );
@@ -1229,18 +1251,18 @@ export default function Home() {
   return (
     <main className={sidebarOpen ? "app-shell sidebar-open" : "app-shell"}>
       <aside id="app-sidebar" className="sidebar" aria-label="เมนูหลัก">
-        <img src="/login-logo.png" alt="Pichayamongkol" />
-        <strong>PMC Intern Attendance</strong>
+        <div className="sidebar-brand">
+          <img src="/login-logo.png" alt="บริษัทพิชยมงคล คอนสตรัคชั่น จำกัด" />
+          <strong>Intern Attendance System</strong>
+        </div>
         <span className="role-badge">{me.role === "admin" ? "ADMIN / HR" : "INTERN"}</span>
         <button className="sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="ปิดเมนู" title="ปิดเมนู">
           <X size={18} /> ปิด
         </button>
         <nav>
-          {me.role === "admin" && (
-            <button className={view === "dashboard" ? "nav-button active" : "nav-button"} onClick={() => openView("dashboard")}>
-              <LayoutDashboard size={18} /> Dashboard
-            </button>
-          )}
+          <button className={view === "dashboard" ? "nav-button active" : "nav-button"} onClick={() => openView("dashboard")}>
+            <LayoutDashboard size={18} /> Dashboard
+          </button>
           {me.role === "intern" && (
             <button className={view === "checkin" ? "nav-button active" : "nav-button"} onClick={() => openView("checkin")}>
               <Fingerprint size={18} /> ลงเวลาเข้า / ออก
@@ -1252,12 +1274,12 @@ export default function Home() {
             </button>
           )}
           <button className={view === "attendance" ? "nav-button active" : "nav-button"} onClick={() => openView("attendance")}>
-            <Eye size={18} /> {me.role === "admin" ? "ตรวจหลักฐานลงเวลา" : "ประวัติของฉัน"}
+            <Eye size={18} /> {me.role === "admin" ? "ตรวจสอบหลักฐานการลงเวลา" : "ประวัติของฉัน"}
           </button>
           {me.role === "admin" && (
             <>
               <button className={view === "leave" ? "nav-button active" : "nav-button"} onClick={() => openView("leave")}>
-                <CalendarDays size={18} /> คำขอลา
+                <CalendarDays size={18} /> อนุมัติคำขอลา
               </button>
               <button className={view === "reports" ? "nav-button active" : "nav-button"} onClick={() => openView("reports")}>
                 <BarChart3 size={18} /> รายงาน
@@ -1273,7 +1295,7 @@ export default function Home() {
             </button>
           )}
           <button className={view === "account" ? "nav-button active" : "nav-button"} onClick={() => openView("account")}>
-            <UserRound size={18} /> บัญชีของฉัน
+            <UserRound size={18} /> โปรไฟล์ของฉัน
           </button>
         </nav>
         <button className="ghost sidebar-logout" onClick={logout}>
@@ -1293,8 +1315,8 @@ export default function Home() {
             <Menu size={20} /> เมนู
           </button>
           <div>
-            <h1>{view === "leave" ? "คำขอลา" : view === "dashboard" ? "Dashboard" : view === "checkin" ? "ลงเวลาฝึกงาน" : view === "users" ? "จัดการบัญชี" : view === "reports" ? "รายงานการฝึกงาน" : view === "audit" ? "ประวัติระบบ" : view === "account" ? "บัญชีของฉัน" : "ตรวจหลักฐานลงเวลา"}</h1>
-            <p>{view === "leave" ? (me.role === "admin" ? "ตรวจคำขอลาของนักศึกษาและบันทึกผลอนุมัติ" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${dashboardToday}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "audit" ? "ติดตามการเข้าสู่ระบบ การแก้ไขข้อมูล และการอนุมัติรายการสำคัญ" : view === "account" ? "ตรวจข้อมูลบัญชีและเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
+            <h1>{view === "leave" ? (me.role === "admin" ? "อนุมัติคำขอลา" : "คำขอลา") : view === "dashboard" ? "Dashboard" : view === "checkin" ? "ลงเวลาฝึกงาน" : view === "users" ? "จัดการบัญชี" : view === "reports" ? "รายงานการฝึกงาน" : view === "audit" ? "ประวัติระบบ" : view === "account" ? "โปรไฟล์ของฉัน" : "ตรวจสอบหลักฐานการลงเวลา"}</h1>
+            <p>{view === "leave" ? (me.role === "admin" ? "ตรวจสอบและอนุมัติคำขอลาของนักศึกษา" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${formatThaiDate(dashboardToday)}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "audit" ? "ติดตามการเข้าสู่ระบบ การแก้ไขข้อมูล และการอนุมัติรายการสำคัญ" : view === "account" ? "ตรวจข้อมูลโปรไฟล์และเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
           </div>
           <div className="topbar-actions">
             <div className="notification-menu">
@@ -1341,15 +1363,29 @@ export default function Home() {
           />
         )}
 
+        {view === "dashboard" && me.role === "intern" && (
+          <InternDashboardPanel
+            me={me}
+            today={today}
+            progress={myProgress}
+            attendanceRows={accountAttendance}
+            leaveRows={accountLeaves}
+            todayDate={dashboardToday}
+            onOpenCheckIn={() => setView("checkin")}
+            onOpenLeave={() => setView("leave")}
+            onOpenHistory={() => setView("attendance")}
+          />
+        )}
+
         {view === "checkin" && (
           <section className="checkin-layout">
             <div className="status-card">
               <div className="status-clock"><Clock3 size={22} /> วันนี้</div>
               <h2>{today ? statusText(today) : "ยังไม่ได้เช็คอิน"}</h2>
               <div className="status-grid">
-                <span>เข้า <strong>{today?.check_in_time || "-"}</strong></span>
-                <span>ออก <strong>{today?.check_out_time || "-"}</strong></span>
-                <span>ชั่วโมง <strong>{today?.total_hours_display || "-"}</strong></span>
+                <span>เวลาเช็คอิน <strong>{today?.check_in_time || "-"}</strong></span>
+                <span>เวลาเช็คเอาท์ <strong>{today?.check_out_time || "-"}</strong></span>
+                <span>ชั่วโมงฝึกงาน <strong>{today?.total_hours_display || "-"}</strong></span>
                 <span>รูปแบบ <strong>{today?.work_mode || "-"}</strong></span>
               </div>
               {today?.location_address && <p className="muted-line"><MapPin size={16} /> {today.location_address}</p>}
@@ -1922,6 +1958,157 @@ function UsersTable({
   );
 }
 
+function InternDashboardPanel({
+  me,
+  today,
+  progress,
+  attendanceRows,
+  leaveRows,
+  todayDate,
+  onOpenCheckIn,
+  onOpenLeave,
+  onOpenHistory,
+}: {
+  me: User;
+  today: Attendance | null;
+  progress: {
+    totalHours: number;
+    attendedDays: number;
+    approvedLeaveDays: number;
+    absentDays: number;
+    plannedDays: number;
+    remainingDays: number;
+    requiredHours: number;
+    percent: number;
+    daysToEnd: number | null;
+  } | null;
+  attendanceRows: Attendance[];
+  leaveRows: LeaveRequest[];
+  todayDate: string;
+  onOpenCheckIn: () => void;
+  onOpenLeave: () => void;
+  onOpenHistory: () => void;
+}) {
+  const lateCount = attendanceRows.filter((row) => row.is_late).length;
+  const missingCheckout = attendanceRows.filter((row) => row.status === "checked_in" && !row.check_out_time).length;
+  const pendingLeaves = leaveRows.filter((row) => row.status === "pending").length;
+  const recentLeaves = leaveRows.slice(0, 4);
+  const recentAttendance = attendanceRows.slice(0, 5);
+  const dayPercent = progress && progress.plannedDays > 0
+    ? Math.min(100, Math.round(((progress.attendedDays + progress.approvedLeaveDays) / progress.plannedDays) * 100))
+    : 0;
+  const hourPercent = progress?.percent || 0;
+  const todayStatus = today ? statusText(today) : "ยังไม่ได้เช็คอิน";
+
+  return (
+    <>
+      <section className="intern-hero">
+        <div>
+          <span>วันนี้ {todayDate}</span>
+          <h2>{todayStatus}</h2>
+          <p>{me.full_name} · {me.employee_code || me.intern_code || "-"} · {me.department || "-"}</p>
+        </div>
+        <div className="dashboard-actions">
+          <button onClick={onOpenCheckIn}><Fingerprint size={18} /> ลงเวลา</button>
+          <button className="ghost" onClick={onOpenLeave}><CalendarDays size={18} /> ขอลา</button>
+        </div>
+      </section>
+
+      <section className="dashboard-metrics intern-metrics">
+        <div><span>ชั่วโมงสะสม</span><strong>{formatHoursValue(progress?.totalHours || 0)}</strong></div>
+        <div><span>วันเข้าแล้ว</span><strong>{progress?.attendedDays || 0}</strong></div>
+        <div><span>วันลาอนุมัติ</span><strong>{progress?.approvedLeaveDays || 0}</strong></div>
+        <div><span>วันขาด</span><strong>{progress?.absentDays || 0}</strong></div>
+        <div><span>วันฝึกงานที่เหลือ</span><strong>{progress?.remainingDays || 0}</strong></div>
+        <div><span>คำขอลารอตรวจ</span><strong>{pendingLeaves}</strong></div>
+      </section>
+
+      <section className="intern-dashboard-grid">
+        <div className="dashboard-panel intern-progress-panel">
+          <div className="panel-heading">
+            <h3>ความคืบหน้าฝึกงาน</h3>
+            {progress?.daysToEnd !== null && progress?.daysToEnd !== undefined && (
+              <span className={progress.daysToEnd <= 14 ? "ending-soon-text" : ""}>
+                คงเหลือ {Math.max(0, progress.daysToEnd)} วันตามปฏิทิน
+              </span>
+            )}
+          </div>
+          <div className="progress-large">
+            <div>
+              <span>ชั่วโมงครบตามเป้า</span>
+              <strong>{hourPercent}%</strong>
+            </div>
+            <div className="progress-track"><span style={{ width: `${hourPercent}%` }} /></div>
+          </div>
+          <div className="progress-large secondary-progress">
+            <div>
+              <span>วันฝึกงานรวมวันลาอนุมัติ</span>
+              <strong>{dayPercent}%</strong>
+            </div>
+            <div className="progress-track"><span style={{ width: `${dayPercent}%` }} /></div>
+          </div>
+          <div className="progress-detail-grid">
+            <div><span>วันตามแผน</span><strong>{progress?.plannedDays || 0}</strong></div>
+            <div><span>ชั่วโมงที่ต้องครบ</span><strong>{progress?.requiredHours || 0}</strong></div>
+            <div><span>เช็คอินล่าช้า</span><strong>{lateCount}</strong></div>
+            <div><span>ยังไม่เช็คเอาท์</span><strong>{missingCheckout}</strong></div>
+          </div>
+        </div>
+
+        <div className="dashboard-panel today-panel">
+          <div className="panel-heading">
+            <h3>สถานะวันนี้</h3>
+            <span>{today?.work_mode || "-"}</span>
+          </div>
+          <div className="status-grid">
+            <span>เวลาเช็คอิน <strong>{today?.check_in_time || "-"}</strong></span>
+            <span>เวลาเช็คเอาท์ <strong>{today?.check_out_time || "-"}</strong></span>
+            <span>ชั่วโมงฝึกงาน <strong>{today?.total_hours_display || "-"}</strong></span>
+            <span>สถานะ <strong>{todayStatus}</strong></span>
+          </div>
+          {today?.location_address && <p className="muted-line"><MapPin size={16} /> {today.location_address}</p>}
+          {today && mapUrl(today) && <a className="evidence-link" href={mapUrl(today)} target="_blank" rel="noreferrer">เปิดพิกัดบน Google Maps</a>}
+        </div>
+      </section>
+
+      <section className="intern-dashboard-grid">
+        <div className="dashboard-panel">
+          <div className="panel-heading">
+            <h3>คำขอลาล่าสุด</h3>
+            <button className="ghost compact-button" onClick={onOpenLeave}>ดูทั้งหมด</button>
+          </div>
+          <div className="mini-list">
+            {recentLeaves.map((row) => (
+              <div key={row.id} className="leave-mini-row">
+                <strong>{row.leave_type}</strong>
+                <span>{row.start_date} - {row.end_date} · {row.total_days} วัน</span>
+                <span className={`leave-status ${row.status}`}>{leaveStatusText(row.status)}</span>
+              </div>
+            ))}
+            {recentLeaves.length === 0 && <div className="mini-empty">ยังไม่มีคำขอลา</div>}
+          </div>
+        </div>
+
+        <div className="dashboard-panel">
+          <div className="panel-heading">
+            <h3>ประวัติล่าสุด</h3>
+            <button className="ghost compact-button" onClick={onOpenHistory}>ดูประวัติ</button>
+          </div>
+          <div className="mini-list">
+            {recentAttendance.map((row) => (
+              <div key={row.id}>
+                <strong>{row.check_in_date} · {statusText(row)}</strong>
+                <span>{row.check_in_time || "-"} - {row.check_out_time || "-"} · {row.total_hours_display || "-"}</span>
+              </div>
+            ))}
+            {recentAttendance.length === 0 && <div className="mini-empty">ยังไม่มีประวัติลงเวลา</div>}
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
 function DashboardPanel({
   data,
   today,
@@ -1953,16 +2140,18 @@ function DashboardPanel({
   onOpenAttendance: () => void;
   onOpenReports: () => void;
 }) {
+  const latestUpdate = data.recentRows[0]?.check_in_time ? `${data.recentRows[0].check_in_time} น.` : "-";
+
   return (
     <>
       <section className="dashboard-hero">
         <div>
-          <span>วันนี้ {today}</span>
-          <h2>{data.todayRows.length} / {data.interns.length} คนเช็คอินแล้ว</h2>
-          <p>ติดตามสถานะวันนี้และความคืบหน้าชั่วโมงฝึกงานของนักศึกษาทั้งหมด</p>
+          <span>วันนี้ {formatThaiDate(today)}</span>
+          <h2>{data.todayRows.length} / {data.interns.length} เช็คอินแล้ว</h2>
+          <p>ติดตามสถานะการเช็คอินและชั่วโมงฝึกงานของนักศึกษาวันนี้</p>
         </div>
         <div className="dashboard-actions">
-          <button onClick={onOpenAttendance}><Eye size={18} /> ตรวจหลักฐาน</button>
+          <button onClick={onOpenAttendance}><Eye size={18} /> ตรวจสอบหลักฐาน</button>
           <button className="ghost" onClick={onOpenReports}><BarChart3 size={18} /> รายงาน</button>
         </div>
       </section>
@@ -1972,7 +2161,7 @@ function DashboardPanel({
         <div><span>เช็คอินวันนี้</span><strong>{data.todayRows.length}</strong></div>
         <div><span>ยังไม่เช็คอิน</span><strong>{data.absent.length}</strong></div>
         <div><span>เช็คเอาท์แล้ว</span><strong>{data.checkedOut}</strong></div>
-        <div><span>มาสาย</span><strong>{data.late}</strong></div>
+        <div><span>เช็คอินล่าช้า</span><strong>{data.late}</strong></div>
         <div><span>ชั่วโมงวันนี้</span><strong>{formatHoursValue(data.todayHours)}</strong></div>
       </section>
 
@@ -1989,7 +2178,13 @@ function DashboardPanel({
                 <span>{user.employee_code || user.intern_code || "-"} · {user.department || "-"}</span>
               </div>
             ))}
-            {data.absent.length === 0 && <div className="mini-empty">ทุกคนเช็คอินแล้ว</div>}
+            {data.absent.length === 0 && (
+              <div className="mini-empty success-state">
+                <CheckCircle2 size={20} />
+                <strong>ทุกคนเช็คอินแล้ว</strong>
+                <span>ไม่มีนักศึกษาที่รอเช็คอินในวันนี้</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2010,7 +2205,7 @@ function DashboardPanel({
                   <span>เข้า {item.attendedDays}</span>
                   <span>ลา {item.approvedLeaveDays}</span>
                   <span>ขาด {item.absentDays}</span>
-                  <span>เหลือ {item.remainingDays}</span>
+                  <span>คงเหลือ {item.remainingDays} วันฝึกงาน</span>
                   {item.daysToEnd !== null && item.daysToEnd <= 14 && <span className="ending-soon">ใกล้จบ {Math.max(0, item.daysToEnd)} วัน</span>}
                 </div>
               </div>
@@ -2020,6 +2215,14 @@ function DashboardPanel({
         </div>
       </section>
 
+      <div className="table-section-header">
+        <div>
+          <h3>รายการเช็คอินวันนี้</h3>
+          <span>รายการลงเวลาล่าสุดของนักศึกษา</span>
+        </div>
+        <span>อัปเดตล่าสุด {latestUpdate}</span>
+      </div>
+
       <section className="table-card">
         <table>
           <thead>
@@ -2027,22 +2230,22 @@ function DashboardPanel({
               <th>วันที่</th>
               <th>นักศึกษา</th>
               <th>แผนก</th>
-              <th>เข้า</th>
-              <th>ออก</th>
-              <th>ชั่วโมง</th>
+              <th>เวลาเช็คอิน</th>
+              <th>เวลาเช็คเอาท์</th>
+              <th>ชั่วโมงฝึกงาน</th>
               <th>สถานะ</th>
             </tr>
           </thead>
           <tbody>
             {data.recentRows.map((row) => (
               <tr key={row.id}>
-                <td>{row.check_in_date}</td>
+                <td>{formatThaiDate(row.check_in_date)}</td>
                 <td><strong>{row.full_name}</strong><small>{attendanceCode(row)}</small></td>
                 <td>{row.department || "-"}</td>
                 <td>{row.check_in_time || "-"}</td>
                 <td>{row.check_out_time || "-"}</td>
                 <td>{row.total_hours_display || "-"}</td>
-                <td><span className={row.status === "checked_out" ? "chip success" : "chip"}>{statusText(row)}</span></td>
+                <td><span className={statusChipClass(row)}>{statusText(row)}</span></td>
               </tr>
             ))}
           </tbody>
@@ -2216,7 +2419,7 @@ function ReportsPanel({
         <div><span>รายการทั้งหมด</span><strong>{summary.totalRows}</strong></div>
         <div><span>นักศึกษา</span><strong>{summary.interns}</strong></div>
         <div><span>เช็คเอาท์แล้ว</span><strong>{summary.checkedOut}</strong></div>
-        <div><span>มาสาย</span><strong>{summary.late}</strong></div>
+        <div><span>เช็คอินล่าช้า</span><strong>{summary.late}</strong></div>
         <div><span>ชั่วโมงรวม</span><strong>{formatHoursValue(summary.totalHours)}</strong></div>
       </section>
 
@@ -2229,7 +2432,7 @@ function ReportsPanel({
               <th>เช็คเอาท์แล้ว</th>
               <th>วันที่ลงเวลา</th>
               <th>จำนวนรายการ</th>
-              <th>มาสาย</th>
+              <th>เช็คอินล่าช้า</th>
               <th>ชั่วโมงรวม</th>
               <th>ช่วงวันที่</th>
             </tr>
@@ -2484,9 +2687,9 @@ function AttendanceTable({
             <th>นักศึกษา</th>
             <th>แผนก</th>
             <th>สถานที่ฝึก</th>
-            <th>เข้า</th>
-            <th>ออก</th>
-            <th>ชั่วโมง</th>
+            <th>เวลาเช็คอิน</th>
+            <th>เวลาเช็คเอาท์</th>
+            <th>ชั่วโมงฝึกงาน</th>
             <th>สถานะ</th>
             <th>หลักฐาน</th>
           </tr>
@@ -2501,7 +2704,7 @@ function AttendanceTable({
               <td>{row.check_in_time || "-"}</td>
               <td>{row.check_out_time || "-"}</td>
               <td>{row.total_hours_display || "-"}</td>
-              <td><span className={row.status === "checked_out" ? "chip success" : "chip"}>{statusText(row)}</span></td>
+              <td><span className={statusChipClass(row)}>{statusText(row)}</span></td>
               <td>
                 <div className="row-actions">
                   <button className="icon-button" onClick={() => onEvidence(row)} title="ตรวจหลักฐาน"><Eye size={18} /></button>

@@ -28,6 +28,11 @@ export const env = {
     enabled: readEnv("LINE_ENABLED", "false") === "true",
     channelAccessToken: readEnv("LINE_CHANNEL_ACCESS_TOKEN", ""),
     groupId: readEnv("LINE_GROUP_ID", ""),
+    stickerPackageId: readEnv("LINE_STICKER_PACKAGE_ID", "11537"),
+    stickerCheckInId: readEnv("LINE_STICKER_CHECKIN_ID", "52002735"),
+    stickerCheckOutId: readEnv("LINE_STICKER_CHECKOUT_ID", "52002735"),
+    stickerLeaveId: readEnv("LINE_STICKER_LEAVE_ID", "52002735"),
+    stickerSummaryId: readEnv("LINE_STICKER_SUMMARY_ID", "52002735"),
+    stickerReminderId: readEnv("LINE_STICKER_REMINDER_ID", "52002735"),
   },
 };
-
