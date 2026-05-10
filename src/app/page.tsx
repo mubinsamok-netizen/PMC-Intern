@@ -27,6 +27,8 @@ import {
   Paperclip,
   Pencil,
   Search,
+  Send,
+  Settings,
   Trash2,
   UserRound,
   UserPlus,
@@ -34,7 +36,9 @@ import {
   X,
   XCircle,
 } from "lucide-react";
+import { Mascot } from "@/components/Mascot";
 import { RadiusMap } from "@/components/RadiusMap";
+import { StudentLocationMap, type StudentLocation } from "@/components/StudentLocationMap";
 
 type User = {
   id: string;
@@ -96,6 +100,31 @@ type NotificationItem = {
   created_at: string;
 };
 
+type ChatbotSettings = {
+  line_enabled: boolean;
+  check_in_enabled: boolean;
+  check_out_enabled: boolean;
+  summary_enabled: boolean;
+  skip_non_workdays: boolean;
+  check_in_time: string;
+  check_out_time: string;
+  summary_time: string;
+};
+
+type Holiday = {
+  id: string;
+  date: string;
+  name: string;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type ChatbotStatus = {
+  date: string;
+  isWorkday: boolean;
+};
+
 type LeaveRequest = {
   id: string;
   user_id: string;
@@ -132,7 +161,7 @@ type AuditLog = {
   created_at: string;
 };
 
-type ViewKey = "dashboard" | "attendance" | "checkin" | "leave" | "users" | "reports" | "audit" | "account";
+type ViewKey = "dashboard" | "attendance" | "checkin" | "leave" | "users" | "reports" | "audit" | "chatbot" | "account";
 type ReportGroupBy = "user" | "department" | "university" | "work_mode" | "date";
 
 type PaginationMeta = {
@@ -184,6 +213,12 @@ type LeaveForm = {
   attachmentName: string;
 };
 
+type LeaveReviewDialog = {
+  row: LeaveRequest;
+  status: "approved" | "rejected";
+  note: string;
+};
+
 type PasswordForm = {
   currentPassword: string;
   newPassword: string;
@@ -194,6 +229,17 @@ type ProfileForm = {
   full_name: string;
   phone: string;
   profileImageBase64: string;
+};
+
+const defaultChatbotSettings: ChatbotSettings = {
+  line_enabled: true,
+  check_in_enabled: true,
+  check_out_enabled: true,
+  summary_enabled: true,
+  skip_non_workdays: true,
+  check_in_time: "09:00",
+  check_out_time: "17:30",
+  summary_time: "17:45",
 };
 
 const workModes = [
@@ -438,6 +484,12 @@ export default function Home() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>(defaultChatbotSettings);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [chatbotStatus, setChatbotStatus] = useState<ChatbotStatus | null>(null);
+  const [holidayForm, setHolidayForm] = useState({ date: "", name: "" });
+  const [chatbotSaving, setChatbotSaving] = useState(false);
+  const [chatbotTesting, setChatbotTesting] = useState("");
   const [today, setToday] = useState<Attendance | null>(null);
   const [selectedEvidence, setSelectedEvidence] = useState<Attendance | null>(null);
   const [selectedCorrection, setSelectedCorrection] = useState<Attendance | null>(null);
@@ -461,6 +513,7 @@ export default function Home() {
   const [leaveStatus, setLeaveStatus] = useState("");
   const [leaveFrom, setLeaveFrom] = useState("");
   const [leaveTo, setLeaveTo] = useState("");
+  const [leaveReview, setLeaveReview] = useState<LeaveReviewDialog | null>(null);
   const [auditQ, setAuditQ] = useState("");
   const [auditAction, setAuditAction] = useState("");
   const [auditFrom, setAuditFrom] = useState("");
@@ -489,6 +542,7 @@ export default function Home() {
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [userSaving, setUserSaving] = useState(false);
   const [leaveSaving, setLeaveSaving] = useState(false);
+  const [leaveReviewSaving, setLeaveReviewSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
 
   const authHeaders = useMemo(() => token ? { Authorization: `Bearer ${token}` } : undefined, [token]);
@@ -761,22 +815,36 @@ export default function Home() {
     }
   }
 
-  async function reviewLeaveRequestRow(row: LeaveRequest, status: "approved" | "rejected") {
-    const defaultNote = status === "approved" ? "อนุมัติแล้ว" : "";
-    const adminNote = window.prompt(status === "approved" ? "หมายเหตุการอนุมัติ (เว้นว่างได้)" : "เหตุผลที่ไม่อนุมัติ", defaultNote);
-    if (adminNote === null) return;
-
+  function reviewLeaveRequestRow(row: LeaveRequest, status: "approved" | "rejected") {
     setMessage("");
+    setLeaveReview({
+      row,
+      status,
+      note: status === "approved" ? "อนุมัติแล้ว" : "",
+    });
+  }
+
+  async function submitLeaveReview(event: React.FormEvent) {
+    event.preventDefault();
+    if (!leaveReview) return;
+    setMessage("");
+    setLeaveReviewSaving(true);
     try {
-      await apiJson(`/api/leave-requests/${row.id}`, {
+      await apiJson(`/api/leave-requests/${leaveReview.row.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ status, admin_note: adminNote }),
+        body: JSON.stringify({
+          status: leaveReview.status,
+          admin_note: leaveReview.note.trim(),
+        }),
       });
       await loadLeaveRequests();
       await loadNotifications();
-      setMessage(status === "approved" ? "อนุมัติคำขอลาแล้ว" : "บันทึกผลไม่อนุมัติแล้ว");
+      setLeaveReview(null);
+      setMessage(leaveReview.status === "approved" ? "อนุมัติคำขอลาแล้ว" : "บันทึกผลไม่อนุมัติแล้ว");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLeaveReviewSaving(false);
     }
   }
 
@@ -854,6 +922,81 @@ export default function Home() {
     const data = await apiJson("/api/notifications?limit=8");
     setNotifications(data.rows || []);
     setUnreadNotifications(data.unread || 0);
+  }
+
+  async function loadChatbotSettings() {
+    if (!authHeaders || me?.role !== "admin") return;
+    const data = await apiJson("/api/admin/chatbot");
+    setChatbotSettings({ ...defaultChatbotSettings, ...(data.settings || {}) });
+    setHolidays(data.holidays || []);
+    setChatbotStatus(data.today || null);
+  }
+
+  async function saveChatbotSettings(nextSettings = chatbotSettings) {
+    setChatbotSaving(true);
+    setMessage("");
+    try {
+      const data = await apiJson("/api/admin/chatbot", {
+        method: "PATCH",
+        body: JSON.stringify({ settings: nextSettings }),
+      });
+      setChatbotSettings({ ...defaultChatbotSettings, ...(data.settings || {}) });
+      setMessage("บันทึกการตั้งค่าแชทบอทแล้ว");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setChatbotSaving(false);
+    }
+  }
+
+  async function addHoliday(event: React.FormEvent) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      await apiJson("/api/admin/chatbot/holidays", {
+        method: "POST",
+        body: JSON.stringify(holidayForm),
+      });
+      setHolidayForm({ date: "", name: "" });
+      await loadChatbotSettings();
+      setMessage("เพิ่มวันหยุดแล้ว ระบบจะไม่ส่งเตือนในวันนั้น");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function removeHoliday(id: string) {
+    if (!window.confirm("ลบวันหยุดนี้ออกจากตารางใช่ไหม")) return;
+    setMessage("");
+    try {
+      await apiJson(`/api/admin/chatbot/holidays?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      await loadChatbotSettings();
+      setMessage("ลบวันหยุดแล้ว");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function testChatbot(action: string) {
+    setChatbotTesting(action);
+    setMessage("");
+    try {
+      const data = await apiJson("/api/admin/chatbot", {
+        method: "POST",
+        body: JSON.stringify({ action, date: chatbotStatus?.date }),
+      });
+      const result = data.result;
+      const count = typeof result?.count === "number"
+        ? result.count
+        : Array.isArray(result?.results)
+          ? result.results.filter((item: { line?: { skipped?: boolean }; skipped?: boolean }) => !item.skipped && !item.line?.skipped).length
+          : 0;
+      setMessage(action === "all" ? `ทดสอบส่งแชทบอทครบแล้ว (${count} รายการ)` : "ทดสอบส่งแชทบอทแล้ว");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setChatbotTesting("");
+    }
   }
 
   async function loadAccountData() {
@@ -1182,6 +1325,7 @@ export default function Home() {
     if (view === "leave") loadLeaveRequests().catch((error) => setMessage(error.message));
     if (view === "reports" && me.role === "admin") loadReportAttendance().catch((error) => setMessage(error.message));
     if (view === "audit" && me.role === "admin") loadAuditLogs().catch((error) => setMessage(error.message));
+    if (view === "chatbot" && me.role === "admin") loadChatbotSettings().catch((error) => setMessage(error.message));
     if (view === "account") loadAccountData().catch((error) => setMessage(error.message));
     if (view === "checkin") {
       loadToday().catch((error) => setMessage(error.message));
@@ -1213,16 +1357,11 @@ export default function Home() {
         <section className="auth-stage" aria-label="เข้าสู่ระบบ PMC CONNEXT">
           <div className="auth-card auth-main">
             <div className="auth-welcome">
-              <span>Welcome to</span>
-              <div className="auth-mark">
-                <img src="/mascot-wave.png" alt="" aria-hidden="true" />
+              <div className="auth-mascot-stage">
+                <Mascot variant="wave" size="jumbo" animation="bounce" className="auth-hero-mascot" />
               </div>
               <h1>PMC CONNEXT</h1>
               <p>ระบบลงเวลาและติดตามการฝึกงาน</p>
-              <div className="auth-meta" aria-hidden="true">
-                <span>INTERN PORTAL</span>
-                <span>HR SYSTEM</span>
-              </div>
             </div>
 
             <form className="auth-form" onSubmit={login}>
@@ -1274,7 +1413,7 @@ export default function Home() {
             </button>
           )}
           <button className={view === "attendance" ? "nav-button active" : "nav-button"} onClick={() => openView("attendance")}>
-            <Eye size={18} /> {me.role === "admin" ? "ตรวจสอบหลักฐานการลงเวลา" : "ประวัติของฉัน"}
+            <Eye size={18} /> {me.role === "admin" ? "ตรวจสอบหลักฐาน" : "ประวัติของฉัน"}
           </button>
           {me.role === "admin" && (
             <>
@@ -1286,6 +1425,9 @@ export default function Home() {
               </button>
               <button className={view === "audit" ? "nav-button active" : "nav-button"} onClick={() => openView("audit")}>
                 <ClipboardList size={18} /> ประวัติระบบ
+              </button>
+              <button className={view === "chatbot" ? "nav-button active" : "nav-button"} onClick={() => openView("chatbot")}>
+                <Settings size={18} /> ตั้งค่าแชทบอท
               </button>
             </>
           )}
@@ -1315,10 +1457,23 @@ export default function Home() {
             <Menu size={20} /> เมนู
           </button>
           <div>
-            <h1>{view === "leave" ? (me.role === "admin" ? "อนุมัติคำขอลา" : "คำขอลา") : view === "dashboard" ? "Dashboard" : view === "checkin" ? "ลงเวลาฝึกงาน" : view === "users" ? "จัดการบัญชี" : view === "reports" ? "รายงานการฝึกงาน" : view === "audit" ? "ประวัติระบบ" : view === "account" ? "โปรไฟล์ของฉัน" : "ตรวจสอบหลักฐานการลงเวลา"}</h1>
-            <p>{view === "leave" ? (me.role === "admin" ? "ตรวจสอบและอนุมัติคำขอลาของนักศึกษา" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${formatThaiDate(dashboardToday)}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "audit" ? "ติดตามการเข้าสู่ระบบ การแก้ไขข้อมูล และการอนุมัติรายการสำคัญ" : view === "account" ? "ตรวจข้อมูลโปรไฟล์และเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
+            <h1>{view === "leave" ? (me.role === "admin" ? "อนุมัติคำขอลา" : "คำขอลา") : view === "dashboard" ? "Dashboard" : view === "checkin" ? "ลงเวลาฝึกงาน" : view === "users" ? "จัดการบัญชี" : view === "reports" ? "รายงานการฝึกงาน" : view === "audit" ? "ประวัติระบบ" : view === "chatbot" ? "ตั้งค่าแชทบอท" : view === "account" ? "โปรไฟล์ของฉัน" : "ตรวจสอบหลักฐานการลงเวลา"}</h1>
+            <p>{view === "leave" ? (me.role === "admin" ? "ตรวจสอบและอนุมัติคำขอลาของนักศึกษา" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${formatThaiDate(dashboardToday)}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "audit" ? "ติดตามการเข้าสู่ระบบ การแก้ไขข้อมูล และการอนุมัติรายการสำคัญ" : view === "chatbot" ? "ควบคุม LINE แจ้งเตือน เวลาแจ้งเตือน และวันหยุดที่ต้องข้าม" : view === "account" ? "ตรวจข้อมูลโปรไฟล์และเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
           </div>
           <div className="topbar-actions">
+            <button className="topbar-profile" type="button" onClick={() => openView("account")} title="My profile">
+              <span className="topbar-profile-avatar" aria-hidden="true">
+                {me.profile_image ? (
+                  <img src={me.profile_image} alt="" />
+                ) : (
+                  <span>{profileInitials(me.full_name)}</span>
+                )}
+              </span>
+              <span className="topbar-profile-copy">
+                <strong>{me.full_name}</strong>
+                <small>{me.role === "admin" ? "Admin" : "Intern"}</small>
+              </span>
+            </button>
             <div className="notification-menu">
               <button className="icon-button notification-button" onClick={() => setNotificationsOpen((open) => !open)} title="การแจ้งเตือน">
                 <Bell size={19} />
@@ -1327,7 +1482,10 @@ export default function Home() {
               {notificationsOpen && (
                 <section className="notification-panel">
                   <div className="notification-header">
-                    <strong>การแจ้งเตือน</strong>
+                    <strong className="notification-title">
+                      <Mascot variant="bell" size="xs" animation={unreadNotifications > 0 ? "wiggle" : "none"} />
+                      การแจ้งเตือน
+                    </strong>
                     <button className="ghost compact-button" onClick={markAllNotificationsRead} disabled={unreadNotifications === 0}>
                       <CheckCheck size={16} /> อ่านทั้งหมด
                     </button>
@@ -1344,7 +1502,12 @@ export default function Home() {
                         <small>{item.created_at}</small>
                       </button>
                     ))}
-                    {notifications.length === 0 && <div className="notification-empty">ยังไม่มีการแจ้งเตือน</div>}
+                    {notifications.length === 0 && (
+                      <div className="notification-empty">
+                        <Mascot variant="bell" size="sm" animation="float" />
+                        <span>ยังไม่มีการแจ้งเตือน</span>
+                      </div>
+                    )}
                   </div>
                 </section>
               )}
@@ -1352,7 +1515,12 @@ export default function Home() {
           </div>
         </header>
 
-        {message && <div className="page-notice">{message}</div>}
+        {message && (
+          <div className="page-notice">
+            <Mascot variant={message.includes("สำเร็จ") || message.includes("เรียบร้อย") ? "thumbs" : "bell"} size="xs" animation="pop" />
+            <span>{message}</span>
+          </div>
+        )}
 
         {view === "dashboard" && me.role === "admin" && (
           <DashboardPanel
@@ -1600,6 +1768,23 @@ export default function Home() {
           </section>
         )}
 
+        {view === "chatbot" && me.role === "admin" && (
+          <ChatbotPanel
+            settings={chatbotSettings}
+            holidays={holidays}
+            today={chatbotStatus}
+            holidayForm={holidayForm}
+            saving={chatbotSaving}
+            testing={chatbotTesting}
+            onSettingsChange={setChatbotSettings}
+            onSaveSettings={() => saveChatbotSettings()}
+            onHolidayFormChange={setHolidayForm}
+            onAddHoliday={addHoliday}
+            onRemoveHoliday={removeHoliday}
+            onTest={testChatbot}
+          />
+        )}
+
         {view === "reports" && me.role === "admin" && (
           <ReportsPanel
             rows={reportRows}
@@ -1680,6 +1865,84 @@ export default function Home() {
           </>
         )}
       </section>
+
+      {leaveReview && (
+        <div className="modal-backdrop" onClick={() => !leaveReviewSaving && setLeaveReview(null)}>
+          <form
+            className={`evidence-modal leave-review-modal ${leaveReview.status === "approved" ? "approve" : "reject"}`}
+            onSubmit={submitLeaveReview}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="leave-review-header">
+              <span className="leave-review-icon" aria-hidden="true">
+                {leaveReview.status === "approved" ? <CheckCircle2 size={28} /> : <XCircle size={28} />}
+              </span>
+              <div>
+                <span>{leaveReview.status === "approved" ? "ยืนยันการอนุมัติ" : "ยืนยันไม่อนุมัติ"}</span>
+                <h2>{leaveReview.status === "approved" ? "อนุมัติคำขอลา" : "ไม่อนุมัติคำขอลา"}</h2>
+                <p>ตรวจรายละเอียดอีกครั้งก่อนบันทึกผลให้ผู้ขอลา</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close leave-review-close"
+                onClick={() => setLeaveReview(null)}
+                disabled={leaveReviewSaving}
+              >
+                ปิด
+              </button>
+            </div>
+
+            <div className="leave-review-body">
+              <div className="leave-review-summary">
+                <div>
+                  <span>นักศึกษา</span>
+                  <strong>{leaveReview.row.full_name}</strong>
+                  <small>{leaveReview.row.employee_code || leaveReview.row.intern_code || "-"} · {leaveReview.row.department || "-"}</small>
+                </div>
+                <div>
+                  <span>ประเภท / จำนวนวัน</span>
+                  <strong>{leaveReview.row.leave_type}</strong>
+                  <small>{leaveReview.row.total_days} วัน · {leaveReview.row.start_date} ถึง {leaveReview.row.end_date}</small>
+                </div>
+              </div>
+
+              <div className="leave-review-reason">
+                <span>เหตุผลที่ขอลา</span>
+                <p>{leaveReview.row.reason}</p>
+              </div>
+
+              <label className="leave-review-note">
+                {leaveReview.status === "approved" ? "หมายเหตุการอนุมัติ" : "เหตุผลที่ไม่อนุมัติ"}
+                <textarea
+                  rows={4}
+                  value={leaveReview.note}
+                  onChange={(e) => setLeaveReview((current) => current ? { ...current, note: e.target.value } : current)}
+                  placeholder={leaveReview.status === "approved" ? "เช่น อนุมัติแล้ว รับทราบ" : "ระบุเหตุผลให้ผู้ขอลาทราบ"}
+                  required={leaveReview.status === "rejected"}
+                />
+              </label>
+
+              <div className="modal-actions leave-review-actions">
+                <button type="button" className="ghost" onClick={() => setLeaveReview(null)} disabled={leaveReviewSaving}>
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className={leaveReview.status === "approved" ? "success-action" : "danger-action"}
+                  disabled={leaveReviewSaving}
+                >
+                  {leaveReview.status === "approved" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+                  {leaveReviewSaving
+                    ? "กำลังบันทึก..."
+                    : leaveReview.status === "approved"
+                      ? "อนุมัติคำขอลา"
+                      : "บันทึกไม่อนุมัติ"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
 
       {selectedEvidence && (
         <div className="modal-backdrop" onClick={() => setSelectedEvidence(null)}>
@@ -2008,6 +2271,7 @@ function InternDashboardPanel({
           <h2>{todayStatus}</h2>
           <p>{me.full_name} · {me.employee_code || me.intern_code || "-"} · {me.department || "-"}</p>
         </div>
+        <Mascot variant={today?.check_out_time ? "thumbs" : today ? "bell" : "wave"} size="lg" animation="float" className="hero-mascot" />
         <div className="dashboard-actions">
           <button onClick={onOpenCheckIn}><Fingerprint size={18} /> ลงเวลา</button>
           <button className="ghost" onClick={onOpenLeave}><CalendarDays size={18} /> ขอลา</button>
@@ -2085,7 +2349,12 @@ function InternDashboardPanel({
                 <span className={`leave-status ${row.status}`}>{leaveStatusText(row.status)}</span>
               </div>
             ))}
-            {recentLeaves.length === 0 && <div className="mini-empty">ยังไม่มีคำขอลา</div>}
+            {recentLeaves.length === 0 && (
+              <div className="mini-empty empty-illustrated">
+                <Mascot variant="tools" size="sm" animation="float" />
+                <span>ยังไม่มีคำขอลา</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2101,7 +2370,12 @@ function InternDashboardPanel({
                 <span>{row.check_in_time || "-"} - {row.check_out_time || "-"} · {row.total_hours_display || "-"}</span>
               </div>
             ))}
-            {recentAttendance.length === 0 && <div className="mini-empty">ยังไม่มีประวัติลงเวลา</div>}
+            {recentAttendance.length === 0 && (
+              <div className="mini-empty empty-illustrated">
+                <Mascot variant="wave" size="sm" animation="float" />
+                <span>ยังไม่มีประวัติลงเวลา</span>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -2141,6 +2415,37 @@ function DashboardPanel({
   onOpenReports: () => void;
 }) {
   const latestUpdate = data.recentRows[0]?.check_in_time ? `${data.recentRows[0].check_in_time} น.` : "-";
+  const locationRows = useMemo<StudentLocation[]>(() => {
+    const usersByKey = new Map<string, User>();
+    data.interns.forEach((user) => {
+      [user.id, user.employee_code, user.intern_code].filter(Boolean).forEach((key) => {
+        usersByKey.set(String(key), user);
+      });
+    });
+
+    return data.todayRows.flatMap((row) => {
+      const latValue = Number(row.location_lat);
+      const lngValue = Number(row.location_lng);
+      if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return [];
+
+      const user = usersByKey.get(row.user_id || "") || usersByKey.get(attendanceCode(row));
+      return [{
+        id: row.id,
+        fullName: row.full_name,
+        code: attendanceCode(row),
+        department: row.department || user?.department || "",
+        profileImage: user?.profile_image,
+        lat: latValue,
+        lng: lngValue,
+        address: row.location_address,
+        status: row.status,
+        checkInTime: row.check_in_time,
+        checkOutTime: row.check_out_time,
+        workMode: row.work_mode,
+        isLate: row.is_late,
+      }];
+    });
+  }, [data.interns, data.todayRows]);
 
   return (
     <>
@@ -2150,6 +2455,7 @@ function DashboardPanel({
           <h2>{data.todayRows.length} / {data.interns.length} เช็คอินแล้ว</h2>
           <p>ติดตามสถานะการเช็คอินและชั่วโมงฝึกงานของนักศึกษาวันนี้</p>
         </div>
+        <Mascot variant={data.absent.length > 0 ? "bell" : "thumbs"} size="lg" animation={data.absent.length > 0 ? "wiggle" : "float"} className="hero-mascot" />
         <div className="dashboard-actions">
           <button onClick={onOpenAttendance}><Eye size={18} /> ตรวจสอบหลักฐาน</button>
           <button className="ghost" onClick={onOpenReports}><BarChart3 size={18} /> รายงาน</button>
@@ -2163,6 +2469,17 @@ function DashboardPanel({
         <div><span>เช็คเอาท์แล้ว</span><strong>{data.checkedOut}</strong></div>
         <div><span>เช็คอินล่าช้า</span><strong>{data.late}</strong></div>
         <div><span>ชั่วโมงวันนี้</span><strong>{formatHoursValue(data.todayHours)}</strong></div>
+      </section>
+
+      <section className="dashboard-panel student-location-panel">
+        <div className="panel-heading">
+          <div>
+            <h3><MapPin size={20} /> แผนที่นักศึกษาวันนี้</h3>
+            <span>แสดงพิกัดเช็คอินล่าสุดของนักศึกษาที่ให้ตำแหน่งไว้</span>
+          </div>
+          <span>{locationRows.length} จุด</span>
+        </div>
+        <StudentLocationMap locations={locationRows} />
       </section>
 
       <section className="dashboard-grid">
@@ -2180,7 +2497,7 @@ function DashboardPanel({
             ))}
             {data.absent.length === 0 && (
               <div className="mini-empty success-state">
-                <CheckCircle2 size={20} />
+                <Mascot variant="thumbs" size="sm" animation="pop" />
                 <strong>ทุกคนเช็คอินแล้ว</strong>
                 <span>ไม่มีนักศึกษาที่รอเช็คอินในวันนี้</span>
               </div>
@@ -2253,6 +2570,153 @@ function DashboardPanel({
         {data.recentRows.length === 0 && <div className="empty">ยังไม่มีรายการลงเวลาล่าสุด</div>}
       </section>
     </>
+  );
+}
+
+function ChatbotPanel({
+  settings,
+  holidays,
+  today,
+  holidayForm,
+  saving,
+  testing,
+  onSettingsChange,
+  onSaveSettings,
+  onHolidayFormChange,
+  onAddHoliday,
+  onRemoveHoliday,
+  onTest,
+}: {
+  settings: ChatbotSettings;
+  holidays: Holiday[];
+  today: ChatbotStatus | null;
+  holidayForm: { date: string; name: string };
+  saving: boolean;
+  testing: string;
+  onSettingsChange: React.Dispatch<React.SetStateAction<ChatbotSettings>>;
+  onSaveSettings: () => void;
+  onHolidayFormChange: React.Dispatch<React.SetStateAction<{ date: string; name: string }>>;
+  onAddHoliday: (event: React.FormEvent) => void;
+  onRemoveHoliday: (id: string) => void;
+  onTest: (action: string) => void;
+}) {
+  const toggleSetting = (key: keyof ChatbotSettings) => {
+    onSettingsChange((current) => ({ ...current, [key]: !current[key] }));
+  };
+  const activeHolidays = holidays.filter((holiday) => holiday.status !== "inactive");
+
+  return (
+    <section className="chatbot-layout">
+      <div className="chatbot-hero">
+        <div>
+          <span>LINE CHATBOT</span>
+          <h2>{settings.line_enabled ? "แชทบอทพร้อมแจ้งเตือน" : "แชทบอทถูกปิดอยู่"}</h2>
+          <p>{today ? `${formatThaiDate(today.date)} · ${today.isWorkday ? "วันทำงาน" : "วันหยุด/เสาร์อาทิตย์"}` : "กำลังตรวจสถานะวันนี้"}</p>
+        </div>
+        <Mascot variant={settings.line_enabled ? "bell" : "tools"} size="lg" animation={settings.line_enabled ? "wiggle" : "float"} className="hero-mascot" />
+        <div className="dashboard-actions">
+          <button onClick={() => onTest("all")} disabled={Boolean(testing)}>
+            <Send size={18} /> {testing === "all" ? "กำลังทดสอบ..." : "ทดสอบทั้งหมด"}
+          </button>
+          <button className="ghost" onClick={onSaveSettings} disabled={saving}>
+            <Settings size={18} /> {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
+      </div>
+
+      <section className="chatbot-grid">
+        <div className="dashboard-panel chatbot-settings-card">
+          <div className="panel-heading">
+            <div>
+              <span>NOTIFICATIONS</span>
+              <h3>รายการแจ้งเตือน</h3>
+            </div>
+            <Bell size={22} />
+          </div>
+          <div className="chatbot-toggle-list">
+            <label className="toggle-row">
+              <input type="checkbox" checked={settings.line_enabled} onChange={() => toggleSetting("line_enabled")} />
+              <span><strong>เปิดระบบ LINE</strong><small>ควบคุมการส่งแจ้งเตือนทั้งหมด</small></span>
+            </label>
+            <label className="toggle-row">
+              <input type="checkbox" checked={settings.skip_non_workdays} onChange={() => toggleSetting("skip_non_workdays")} />
+              <span><strong>ข้ามเสาร์-อาทิตย์และวันหยุด</strong><small>ใช้ตาราง Holidays ด้านล่าง</small></span>
+            </label>
+            <label className="toggle-row">
+              <input type="checkbox" checked={settings.check_in_enabled} onChange={() => toggleSetting("check_in_enabled")} />
+              <span><strong>เตือนเช็คอิน</strong><small>ส่งรายชื่อคนที่ยังไม่เช็คอิน</small></span>
+            </label>
+            <label className="toggle-row">
+              <input type="checkbox" checked={settings.check_out_enabled} onChange={() => toggleSetting("check_out_enabled")} />
+              <span><strong>เตือนเช็คเอาท์</strong><small>ส่งรายชื่อคนที่เช็คอินแล้วแต่ยังไม่เช็คเอาท์</small></span>
+            </label>
+            <label className="toggle-row">
+              <input type="checkbox" checked={settings.summary_enabled} onChange={() => toggleSetting("summary_enabled")} />
+              <span><strong>สรุปวันนี้</strong><small>ส่งตัวเลขสรุปประจำวัน</small></span>
+            </label>
+          </div>
+        </div>
+
+        <div className="dashboard-panel chatbot-settings-card">
+          <div className="panel-heading">
+            <div>
+              <span>SCHEDULE</span>
+              <h3>เวลาแจ้งเตือน</h3>
+            </div>
+            <Clock3 size={22} />
+          </div>
+          <div className="chatbot-time-grid">
+            <label>เตือนเช็คอิน<input type="time" value={settings.check_in_time} readOnly aria-readonly="true" /></label>
+            <label>เตือนเช็คเอาท์<input type="time" value={settings.check_out_time} readOnly aria-readonly="true" /></label>
+            <label>สรุปวันนี้<input type="time" value={settings.summary_time} readOnly aria-readonly="true" /></label>
+          </div>
+          <div className="chatbot-test-grid">
+            <button className="ghost" onClick={() => onTest("check-in-reminder")} disabled={Boolean(testing)}>
+              <Send size={16} /> {testing === "check-in-reminder" ? "กำลังส่ง..." : "ทดสอบเช็คอิน"}
+            </button>
+            <button className="ghost" onClick={() => onTest("check-out-reminder")} disabled={Boolean(testing)}>
+              <Send size={16} /> {testing === "check-out-reminder" ? "กำลังส่ง..." : "ทดสอบเช็คเอาท์"}
+            </button>
+            <button className="ghost" onClick={() => onTest("summary")} disabled={Boolean(testing)}>
+              <Send size={16} /> {testing === "summary" ? "กำลังส่ง..." : "ทดสอบสรุป"}
+            </button>
+          </div>
+          <p className="muted-line">เวลาในหน้านี้เป็นเวลาประเทศไทย cron ปัจจุบันตั้งไว้ที่ 09:00, 17:30, 17:45 บน Vercel</p>
+        </div>
+      </section>
+
+      <section className="dashboard-panel holiday-panel">
+        <div className="panel-heading">
+          <div>
+            <span>HOLIDAYS</span>
+            <h3>วันหยุดที่แชทบอทต้องข้าม</h3>
+          </div>
+          <Mascot variant="tools" size="sm" animation="float" />
+        </div>
+        <form className="holiday-form" onSubmit={onAddHoliday}>
+          <label>วันที่<input type="date" value={holidayForm.date} onChange={(e) => onHolidayFormChange((form) => ({ ...form, date: e.target.value }))} required /></label>
+          <label>ชื่อวันหยุด<input value={holidayForm.name} onChange={(e) => onHolidayFormChange((form) => ({ ...form, name: e.target.value }))} placeholder="เช่น วันหยุดบริษัท" /></label>
+          <button type="submit"><CalendarDays size={18} /> เพิ่มวันหยุด</button>
+        </form>
+        <div className="holiday-list">
+          {activeHolidays.map((holiday) => (
+            <div key={holiday.id} className="holiday-row">
+              <div>
+                <strong>{formatThaiDate(holiday.date)}</strong>
+                <span>{holiday.name}</span>
+              </div>
+              <button className="icon-button danger" onClick={() => onRemoveHoliday(holiday.id)} title="ลบวันหยุด"><Trash2 size={18} /></button>
+            </div>
+          ))}
+          {activeHolidays.length === 0 && (
+            <div className="mini-empty empty-illustrated">
+              <Mascot variant="wave" size="sm" animation="float" />
+              <span>ยังไม่มีวันหยุดที่เพิ่มเอง</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </section>
   );
 }
 

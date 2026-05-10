@@ -45,18 +45,12 @@ type LineReminderPayload = {
   names: string[];
 };
 
-type LineSticker = {
-  packageId: string;
-  stickerId: string;
-};
-
 type FlexComponent = Record<string, unknown>;
 type FlexContainer = Record<string, unknown>;
 
 type LineMessage =
   | { type: "text"; text: string }
-  | { type: "flex"; altText: string; contents: FlexContainer }
-  | { type: "sticker"; packageId: string; stickerId: string };
+  | { type: "flex"; altText: string; contents: FlexContainer };
 
 const colors = {
   brand: "#E84924",
@@ -68,18 +62,22 @@ const colors = {
   warning: "#F59B2E",
 };
 
-function sticker(stickerId: string): LineSticker | undefined {
-  if (!env.line.stickerPackageId || !stickerId) return undefined;
-  return { packageId: env.line.stickerPackageId, stickerId };
+const mascots = {
+  wave: "/mascots/mascot-wave.png",
+  bell: "/mascots/mascot-bell.png",
+  thumbs: "/mascots/mascot-thumbs.png",
+  tools: "/mascots/mascot-tools.png",
+};
+
+function publicAssetUrl(path: string) {
+  if (/^https:\/\//i.test(path)) return path;
+  return `${env.publicAppUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-async function pushLine(message: LineMessage, lineSticker?: LineSticker) {
+async function pushLine(message: LineMessage) {
   if (!env.line.enabled || !env.line.channelAccessToken || !env.line.groupId) return { skipped: true };
 
   const messages: LineMessage[] = [message];
-  if (lineSticker) {
-    messages.push({ type: "sticker", packageId: lineSticker.packageId, stickerId: lineSticker.stickerId });
-  }
 
   const res = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
@@ -212,11 +210,21 @@ function makeCuteCard(options: {
                 flexText(options.subtitle, { size: "xs", color: "#EFFFFC", margin: "xs" }),
               ],
             },
-            flexText(options.mascot || "🐧", {
-              flex: 0,
-              size: "4xl",
-              align: "end",
-            }),
+            options.mascot
+              ? {
+                  type: "image",
+                  url: publicAssetUrl(options.mascot),
+                  flex: 0,
+                  size: "72px",
+                  aspectRatio: "1:1",
+                  aspectMode: "fit",
+                  margin: "md",
+                }
+              : flexText("🐧", {
+                  flex: 0,
+                  size: "4xl",
+                  align: "end",
+                }),
           ],
         },
       ],
@@ -282,7 +290,7 @@ export async function notifyLineCheckIn(record: LineAttendancePayload) {
     title: "เช็คอิน",
     bigValue: record.check_in_time || "-",
     subtitle: record.is_late ? "เข้าระบบล่าช้าเล็กน้อย" : "พร้อมเริ่มวันฝึกงาน",
-    mascot: record.is_late ? "🐧💦" : "🐧",
+    mascot: record.is_late ? mascots.bell : mascots.wave,
     rows: [
       infoRow("ชื่อ", record.full_name, true),
       infoRow("รหัส", codeOf(record)),
@@ -295,7 +303,7 @@ export async function notifyLineCheckIn(record: LineAttendancePayload) {
     buttonLabel: "รับทราบ",
     buttonText: "รับทราบเช็คอิน",
     accentColor: record.is_late ? colors.warning : colors.brand,
-  }), sticker(env.line.stickerCheckInId));
+  }));
 }
 
 export async function notifyLineCheckOut(record: LineAttendancePayload) {
@@ -304,7 +312,7 @@ export async function notifyLineCheckOut(record: LineAttendancePayload) {
     title: "เช็คเอาท์",
     bigValue: record.total_hours_display || "-",
     subtitle: "บันทึกชั่วโมงฝึกงานวันนี้แล้ว",
-    mascot: "🐧✨",
+    mascot: mascots.thumbs,
     rows: [
       infoRow("ชื่อ", record.full_name, true),
       infoRow("รหัส", codeOf(record)),
@@ -316,7 +324,7 @@ export async function notifyLineCheckOut(record: LineAttendancePayload) {
     note: "ขอบคุณสำหรับวันนี้ครับ",
     buttonLabel: "ปิดงานวันนี้",
     buttonText: "รับทราบเช็คเอาท์",
-  }), sticker(env.line.stickerCheckOutId));
+  }));
 }
 
 export async function notifyLineLeaveRequest(record: LineLeaveRequestPayload) {
@@ -325,7 +333,7 @@ export async function notifyLineLeaveRequest(record: LineLeaveRequestPayload) {
     title: "คำขอลาใหม่",
     bigValue: `${record.total_days} วัน`,
     subtitle: "รอผู้ดูแลระบบตรวจสอบ",
-    mascot: "🐧📄",
+    mascot: mascots.tools,
     rows: [
       infoRow("ชื่อ", record.full_name, true),
       infoRow("รหัส", codeOf(record)),
@@ -337,7 +345,7 @@ export async function notifyLineLeaveRequest(record: LineLeaveRequestPayload) {
     note: "เหตุผลจะแสดงเฉพาะในระบบเพื่อความเป็นส่วนตัว",
     buttonLabel: "ตรวจคำขอ",
     buttonText: "ตรวจคำขอลา",
-  }), sticker(env.line.stickerLeaveId));
+  }));
 }
 
 export async function notifyLineLeaveReview(record: LineLeaveRequestPayload) {
@@ -347,7 +355,7 @@ export async function notifyLineLeaveReview(record: LineLeaveRequestPayload) {
     title: "ผลคำขอลา",
     bigValue: leaveStatusText(record.status),
     subtitle: approved ? "คำขอได้รับการอนุมัติแล้ว" : "อัปเดตผลการตรวจคำขอ",
-    mascot: approved ? "🐧✅" : "🐧📌",
+    mascot: approved ? mascots.thumbs : mascots.bell,
     rows: [
       infoRow("ชื่อ", record.full_name, true),
       infoRow("รหัส", codeOf(record)),
@@ -359,7 +367,7 @@ export async function notifyLineLeaveReview(record: LineLeaveRequestPayload) {
     buttonLabel: "รับทราบ",
     buttonText: "รับทราบผลคำขอลา",
     accentColor: approved ? colors.brand : colors.warning,
-  }), sticker(env.line.stickerLeaveId));
+  }));
 }
 
 export async function notifyLineDailySummary(summary: LineSummaryPayload) {
@@ -368,7 +376,7 @@ export async function notifyLineDailySummary(summary: LineSummaryPayload) {
     title: "สรุปวันนี้",
     bigValue: `${summary.checkedIn}/${summary.activeInterns}`,
     subtitle: "เช็คอินแล้วจากนักศึกษาที่ใช้งาน",
-    mascot: "🐧📊",
+    mascot: mascots.tools,
     rows: [
       infoRow("เช็คอินแล้ว", `${summary.checkedIn} คน`, true),
       infoRow("เช็คเอาท์แล้ว", `${summary.checkedOut} คน`),
@@ -380,7 +388,7 @@ export async function notifyLineDailySummary(summary: LineSummaryPayload) {
     note: `ประจำวันที่ ${formatThaiDate(summary.date)}`,
     buttonLabel: "ดูสรุป",
     buttonText: "ดูสรุปการฝึกงาน",
-  }), sticker(env.line.stickerSummaryId));
+  }));
 }
 
 export async function notifyLineCheckInReminder(payload: LineReminderPayload) {
@@ -390,7 +398,7 @@ export async function notifyLineCheckInReminder(payload: LineReminderPayload) {
     title: "เตือนเช็คอิน",
     bigValue: `${payload.names.length} คน`,
     subtitle: "ยังไม่พบการเช็คอินวันนี้",
-    mascot: "🐧🔔",
+    mascot: mascots.bell,
     rows: [
       flexText(nameList(payload.names), {
         size: "sm",
@@ -402,7 +410,7 @@ export async function notifyLineCheckInReminder(payload: LineReminderPayload) {
     buttonLabel: "รับทราบ",
     buttonText: "รับทราบเตือนเช็คอิน",
     accentColor: colors.warning,
-  }), sticker(env.line.stickerReminderId));
+  }));
 }
 
 export async function notifyLineCheckOutReminder(payload: LineReminderPayload) {
@@ -412,7 +420,7 @@ export async function notifyLineCheckOutReminder(payload: LineReminderPayload) {
     title: "เตือนเช็คเอาท์",
     bigValue: `${payload.names.length} คน`,
     subtitle: "ยังไม่พบการเช็คเอาท์วันนี้",
-    mascot: "🐧🔔",
+    mascot: mascots.bell,
     rows: [
       flexText(nameList(payload.names), {
         size: "sm",
@@ -424,5 +432,5 @@ export async function notifyLineCheckOutReminder(payload: LineReminderPayload) {
     buttonLabel: "รับทราบ",
     buttonText: "รับทราบเตือนเช็คเอาท์",
     accentColor: colors.warning,
-  }), sticker(env.line.stickerReminderId));
+  }));
 }

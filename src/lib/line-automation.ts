@@ -7,6 +7,7 @@ import {
   notifyLineDailySummary,
 } from "@/lib/line";
 import { listUsers } from "@/lib/users";
+import { getChatbotSettings, isChatbotActionEnabled } from "@/lib/chatbot-settings";
 import { isWorkday } from "@/lib/workdays";
 
 const AUTOMATION_USER: SessionUser = {
@@ -149,21 +150,36 @@ export async function sendLineCheckOutReminder(date = bangkokDate()) {
   };
 }
 
-export async function runLineAutomation(action: string, date = bangkokDate(), options: { force?: boolean } = {}) {
+export async function runLineAutomation(
+  action: string,
+  date = bangkokDate(),
+  options: { force?: boolean } = {},
+): Promise<Record<string, unknown>> {
   const normalized = (action || "summary") as AutomationAction;
-  if (!options.force && !(await isWorkday(date))) {
-    return { ok: true, action: normalized, date, skipped: true, reason: "Non-working day" };
+  const settings = await getChatbotSettings();
+
+  if (!options.force) {
+    if (!settings.line_enabled) {
+      return { ok: true, action: normalized, date, skipped: true, reason: "LINE chatbot disabled" };
+    }
+    if (settings.skip_non_workdays && !(await isWorkday(date))) {
+      return { ok: true, action: normalized, date, skipped: true, reason: "Non-working day" };
+    }
+    if (normalized !== "all" && !isChatbotActionEnabled(normalized, settings)) {
+      return { ok: true, action: normalized, date, skipped: true, reason: "Notification disabled" };
+    }
   }
+
   if (normalized === "summary") return sendLineDailySummary(date);
   if (normalized === "check-in-reminder") return sendLineCheckInReminder(date);
   if (normalized === "check-out-reminder") return sendLineCheckOutReminder(date);
   if (normalized === "all") {
-    const [summary, checkInReminder, checkOutReminder] = await Promise.all([
-      sendLineDailySummary(date),
-      sendLineCheckInReminder(date),
-      sendLineCheckOutReminder(date),
+    const [checkInReminder, checkOutReminder, summary] = await Promise.all([
+      runLineAutomation("check-in-reminder", date, options),
+      runLineAutomation("check-out-reminder", date, options),
+      runLineAutomation("summary", date, options),
     ]);
-    return { ok: true, action: "all", date, results: [summary, checkInReminder, checkOutReminder] };
+    return { ok: true, action: "all", date, results: [checkInReminder, checkOutReminder, summary] };
   }
   throw new Error("Invalid LINE automation action");
 }

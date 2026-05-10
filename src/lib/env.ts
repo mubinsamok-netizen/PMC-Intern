@@ -10,9 +10,18 @@ function requiredEnv(key: string) {
   return value;
 }
 
+const vercelUrl = readEnv("VERCEL_URL");
+const nextAuthUrl = readEnv("NEXTAUTH_URL");
+const publicAppUrlFallback = vercelUrl
+  ? `https://${vercelUrl}`
+  : nextAuthUrl.startsWith("https://")
+    ? nextAuthUrl
+    : "https://pmc-intern.vercel.app";
+
 export const env = {
   appName: readEnv("NEXT_PUBLIC_APP_NAME", "PMC Intern Attendance"),
   appVersion: readEnv("NEXT_PUBLIC_APP_VERSION", "1.0.0"),
+  publicAppUrl: readEnv("NEXT_PUBLIC_APP_URL", publicAppUrlFallback).replace(/\/+$/, ""),
   timezone: readEnv("APP_TIMEZONE", "Asia/Bangkok"),
   locale: readEnv("APP_LOCALE", "th-TH"),
   jwtSecret: readEnv("JWT_SECRET", readEnv("NEXTAUTH_SECRET", "development-secret")),
