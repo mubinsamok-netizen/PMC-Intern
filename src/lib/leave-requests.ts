@@ -169,7 +169,7 @@ export async function createLeaveRequest(sessionUser: SessionUser, data: Record<
 
   await appendRow(LEAVE_REQUESTS_SHEET, headers, record);
   const formatted = formatRequest({ ...record, _rowNumber: "" });
-  notifyLineLeaveRequest(formatted).catch((error) => console.error(error));
+  await notifyLineLeaveRequest(formatted).catch((error) => console.error(error));
   createNotificationsForAdmins(
     "leave_request",
     "มีคำขอลาใหม่",

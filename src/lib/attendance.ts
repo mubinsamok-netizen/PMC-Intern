@@ -255,7 +255,7 @@ export async function checkIn(sessionUser: SessionUser, data: Record<string, unk
 
   await appendRow(ATTENDANCE_SHEET, headers, record);
   const formatted = formatRecord({ ...record, _rowNumber: "" });
-  notifyLineCheckIn(formatted).catch((error) => console.error(error));
+  await notifyLineCheckIn(formatted).catch((error) => console.error(error));
   createNotificationsForAdmins(
     formatted.is_late ? "warning" : "checkin",
     formatted.is_late ? "นักศึกษาฝึกงานเช็คอินสาย" : "นักศึกษาฝึกงานเช็คอิน",

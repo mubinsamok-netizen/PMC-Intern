@@ -114,6 +114,6 @@ export async function createSiteVisit(sessionUser: SessionUser, data: Record<str
 
   await appendRow(SITE_VISITS_SHEET, headers, record);
   const formatted = formatVisit({ ...record, _rowNumber: "" });
-  notifyLineSiteVisit(formatted).catch((error) => console.error(error));
+  await notifyLineSiteVisit(formatted).catch((error) => console.error(error));
   return formatted;
 }
