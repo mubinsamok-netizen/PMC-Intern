@@ -184,7 +184,7 @@ export async function updateUser(id: string, data: Record<string, unknown>) {
   if (updates.email) updates.email = String(updates.email).toLowerCase();
   if (updates.role && updates.role !== "admin") updates.role = "intern";
 
-  await updateRow(USERS_SHEET, headers, Number(target._rowNumber), updates);
+  await updateRow(USERS_SHEET, headers, Number(target._rowNumber), updates, target);
   return sanitizeUser({ ...target, ...updates });
 }
 
@@ -205,7 +205,7 @@ export async function migratePlainPasswords(options: { adminPassword: string; in
     await updateRow(USERS_SHEET, headers, Number(row._rowNumber), {
       password,
       updated_at: new Date().toISOString(),
-    });
+    }, row);
     changed += 1;
   }
 

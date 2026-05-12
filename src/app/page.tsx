@@ -7,14 +7,11 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  CheckCheck,
   CheckCircle2,
-  ClipboardList,
   Download,
   Camera,
   Clock3,
   Eye,
-  FileSpreadsheet,
   Filter,
   Fingerprint,
   KeyRound,
@@ -27,7 +24,6 @@ import {
   Paperclip,
   Pencil,
   Search,
-  Send,
   Settings,
   Trash2,
   UserRound,
@@ -90,14 +86,20 @@ type Attendance = {
   notes?: string;
 };
 
-type NotificationItem = {
+type SiteVisit = {
   id: string;
-  type: string;
-  title: string;
-  message: string;
-  link?: string;
-  read_at?: string | null;
-  created_at: string;
+  attendance_id: string;
+  user_id: string;
+  intern_code?: string;
+  employee_code?: string;
+  full_name?: string;
+  check_in_date: string;
+  site_name: string;
+  location_lat?: string;
+  location_lng?: string;
+  location_address?: string;
+  notes?: string;
+  visited_at: string;
 };
 
 type ChatbotSettings = {
@@ -148,20 +150,7 @@ type LeaveRequest = {
   updated_at?: string;
 };
 
-type AuditLog = {
-  id: string;
-  user_id?: string;
-  user_name?: string;
-  action: string;
-  target_type?: string;
-  target_id?: string;
-  details?: string;
-  ip?: string;
-  user_agent?: string;
-  created_at: string;
-};
-
-type ViewKey = "dashboard" | "attendance" | "checkin" | "leave" | "users" | "reports" | "audit" | "chatbot" | "account";
+type ViewKey = "dashboard" | "attendance" | "checkin" | "leave" | "users" | "reports" | "chatbot" | "account";
 type ReportGroupBy = "user" | "department" | "university" | "work_mode" | "date";
 
 type PaginationMeta = {
@@ -228,7 +217,22 @@ type PasswordForm = {
 type ProfileForm = {
   full_name: string;
   phone: string;
+  university: string;
+  faculty: string;
+  major: string;
+  mentor_name: string;
+  position: string;
+  internship_start_date: string;
+  internship_end_date: string;
   profileImageBase64: string;
+};
+
+type SiteVisitForm = {
+  site_name: string;
+  location_address: string;
+  location_lat: string;
+  location_lng: string;
+  notes: string;
 };
 
 const defaultChatbotSettings: ChatbotSettings = {
@@ -291,6 +295,27 @@ const emptyLeaveForm: LeaveForm = {
   attachmentName: "",
 };
 
+const emptyProfileForm: ProfileForm = {
+  full_name: "",
+  phone: "",
+  university: "",
+  faculty: "",
+  major: "",
+  mentor_name: "",
+  position: "",
+  internship_start_date: "",
+  internship_end_date: "",
+  profileImageBase64: "",
+};
+
+const emptySiteVisitForm: SiteVisitForm = {
+  site_name: "",
+  location_address: "",
+  location_lat: "",
+  location_lng: "",
+  notes: "",
+};
+
 const emptyPasswordForm: PasswordForm = {
   currentPassword: "",
   newPassword: "",
@@ -309,6 +334,22 @@ function mapUrl(row: Attendance) {
   return `https://www.google.com/maps?q=${encodeURIComponent(`${row.location_lat},${row.location_lng}`)}`;
 }
 
+function siteVisitMapUrl(row: SiteVisit) {
+  if (!row.location_lat || !row.location_lng) return "";
+  return `https://www.google.com/maps?q=${encodeURIComponent(`${row.location_lat},${row.location_lng}`)}`;
+}
+
+function formatVisitTime(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("th-TH", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function statusText(row: Attendance) {
   if (row.status === "checked_out") return row.is_late ? "เช็คเอาท์แล้ว · ล่าช้า" : "เช็คเอาท์แล้ว";
   if (row.status === "checked_in") return row.is_late ? "เช็คอินแล้ว · ล่าช้า" : "เช็คอินแล้ว";
@@ -325,40 +366,6 @@ function leaveStatusText(status: string) {
   if (status === "approved") return "อนุมัติแล้ว";
   if (status === "rejected") return "ไม่อนุมัติ";
   return "รออนุมัติ";
-}
-
-function auditActionText(action: string) {
-  const labels: Record<string, string> = {
-    LOGIN: "เข้าสู่ระบบ",
-    LOGOUT: "ออกจากระบบ",
-    LOGIN_FAILED: "เข้าสู่ระบบไม่สำเร็จ",
-    CHANGE_PASSWORD: "เปลี่ยนรหัสผ่าน",
-    RESET_PASSWORD: "รีเซ็ตรหัสผ่าน",
-    CREATE_USER: "เพิ่มบัญชี",
-    UPDATE_USER: "แก้ไขบัญชี",
-    DELETE_USER: "ลบบัญชี",
-    CHECK_IN: "เช็คอิน",
-    CHECK_OUT: "เช็คเอาท์",
-    UPDATE_ATTENDANCE: "แก้ไขเวลา",
-    DELETE_ATTENDANCE: "ลบเวลา",
-    LEAVE_REQUEST: "ส่งคำขอลา",
-    LEAVE_APPROVE: "อนุมัติลา",
-    LEAVE_REJECT: "ไม่อนุมัติลา",
-  };
-  return labels[action] || action || "-";
-}
-
-function auditDetailsText(details?: string) {
-  if (!details) return "-";
-  try {
-    const parsed = JSON.parse(details) as Record<string, unknown>;
-    return Object.entries(parsed)
-      .filter(([, value]) => value !== undefined && value !== null && value !== "")
-      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`)
-      .join(" / ") || "-";
-  } catch {
-    return details;
-  }
 }
 
 function fileToBase64(file: File) {
@@ -475,21 +482,18 @@ export default function Home() {
   const [accountAttendance, setAccountAttendance] = useState<Attendance[]>([]);
   const [accountLeaves, setAccountLeaves] = useState<LeaveRequest[]>([]);
   const [reportRows, setReportRows] = useState<Attendance[]>([]);
+  const [todaySiteVisits, setTodaySiteVisits] = useState<SiteVisit[]>([]);
+  const [evidenceSiteVisits, setEvidenceSiteVisits] = useState<SiteVisit[]>([]);
   const [dashboardUsers, setDashboardUsers] = useState<User[]>([]);
   const [dashboardRows, setDashboardRows] = useState<Attendance[]>([]);
   const [dashboardLeaves, setDashboardLeaves] = useState<LeaveRequest[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>(defaultChatbotSettings);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [chatbotStatus, setChatbotStatus] = useState<ChatbotStatus | null>(null);
   const [holidayForm, setHolidayForm] = useState({ date: "", name: "" });
   const [chatbotSaving, setChatbotSaving] = useState(false);
-  const [chatbotTesting, setChatbotTesting] = useState("");
   const [today, setToday] = useState<Attendance | null>(null);
   const [selectedEvidence, setSelectedEvidence] = useState<Attendance | null>(null);
   const [selectedCorrection, setSelectedCorrection] = useState<Attendance | null>(null);
@@ -507,41 +511,34 @@ export default function Home() {
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
   const [reportGroupBy, setReportGroupBy] = useState<ReportGroupBy>("user");
-  const [reportExporting, setReportExporting] = useState(false);
-  const [reportSheetUrl, setReportSheetUrl] = useState("");
   const [leaveQ, setLeaveQ] = useState("");
   const [leaveStatus, setLeaveStatus] = useState("");
   const [leaveFrom, setLeaveFrom] = useState("");
   const [leaveTo, setLeaveTo] = useState("");
   const [leaveReview, setLeaveReview] = useState<LeaveReviewDialog | null>(null);
-  const [auditQ, setAuditQ] = useState("");
-  const [auditAction, setAuditAction] = useState("");
-  const [auditFrom, setAuditFrom] = useState("");
-  const [auditTo, setAuditTo] = useState("");
+  const [siteForm, setSiteForm] = useState<SiteVisitForm>(emptySiteVisitForm);
   const [leaveForm, setLeaveForm] = useState<LeaveForm>(emptyLeaveForm);
   const [passwordForm, setPasswordForm] = useState<PasswordForm>(emptyPasswordForm);
-  const [profileForm, setProfileForm] = useState<ProfileForm>({ full_name: "", phone: "", profileImageBase64: "" });
+  const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
   const [profileSaving, setProfileSaving] = useState(false);
   const [usersPagination, setUsersPagination] = useState<PaginationMeta>(emptyPagination);
   const [attendancePagination, setAttendancePagination] = useState<PaginationMeta>(emptyPagination);
   const [leavePagination, setLeavePagination] = useState<PaginationMeta>(emptyPagination);
-  const [auditPagination, setAuditPagination] = useState<PaginationMeta>(emptyPagination);
   const [usersPage, setUsersPage] = useState(1);
   const [attendancePage, setAttendancePage] = useState(1);
   const [leavePage, setLeavePage] = useState(1);
-  const [auditPage, setAuditPage] = useState(1);
   const [workMode, setWorkMode] = useState("Office");
   const [locationAddress, setLocationAddress] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
-  const [selfieBase64, setSelfieBase64] = useState("");
-  const [checkoutSelfieBase64, setCheckoutSelfieBase64] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [siteLocating, setSiteLocating] = useState(false);
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [userSaving, setUserSaving] = useState(false);
   const [leaveSaving, setLeaveSaving] = useState(false);
+  const [siteSaving, setSiteSaving] = useState(false);
   const [leaveReviewSaving, setLeaveReviewSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
 
@@ -798,21 +795,6 @@ export default function Home() {
     setLeavePage(data.pagination?.page || page);
   }
 
-  async function loadAuditLogs(page = auditPage) {
-    if (!authHeaders || me?.role !== "admin") return;
-    const params = new URLSearchParams();
-    if (auditQ) params.set("q", auditQ);
-    if (auditAction) params.set("action", auditAction);
-    if (auditFrom) params.set("from", auditFrom);
-    if (auditTo) params.set("to", auditTo);
-    params.set("page", String(page));
-    params.set("pageSize", "50");
-    const data = await apiJson(`/api/audit-log?${params.toString()}`);
-    setAuditLogs(data.rows || []);
-    setAuditPagination(data.pagination || emptyPagination);
-    setAuditPage(data.pagination?.page || page);
-  }
-
   async function submitLeaveRequest(event: React.FormEvent) {
     event.preventDefault();
     setLeaveSaving(true);
@@ -824,7 +806,6 @@ export default function Home() {
       });
       setLeaveForm(emptyLeaveForm);
       await loadLeaveRequests();
-      await loadNotifications();
       setMessage("ส่งคำขอลาแล้ว รอ admin อนุมัติ");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -856,7 +837,6 @@ export default function Home() {
         }),
       });
       await loadLeaveRequests();
-      await loadNotifications();
       setLeaveReview(null);
       setMessage(leaveReview.status === "approved" ? "อนุมัติคำขอลาแล้ว" : "บันทึกผลไม่อนุมัติแล้ว");
     } catch (error) {
@@ -905,41 +885,28 @@ export default function Home() {
     URL.revokeObjectURL(url);
   }
 
-  async function exportReportSheet() {
-    setReportExporting(true);
-    setReportSheetUrl("");
-    setMessage("");
-    try {
-      const data = await apiJson("/api/reports/export-sheet", {
-        method: "POST",
-        body: JSON.stringify({
-          q: reportQ,
-          from: reportFrom,
-          to: reportTo,
-          groupBy: reportGroupBy,
-        }),
-      });
-      setReportSheetUrl(data.report.url);
-      setMessage("สร้าง Google Sheet รายงานแล้ว");
-      window.open(data.report.url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setReportExporting(false);
-    }
-  }
-
   async function loadToday() {
     if (!authHeaders) return;
     const data = await apiJson("/api/attendance/today");
     setToday(data.today);
   }
 
-  async function loadNotifications() {
+  async function loadSiteVisits(attendanceId: string) {
+    if (!authHeaders || !attendanceId) return [];
+    const params = new URLSearchParams({ attendance_id: attendanceId });
+    const data = await apiJson(`/api/site-visits?${params.toString()}`);
+    return data.rows || [];
+  }
+
+  async function loadCheckInData() {
     if (!authHeaders) return;
-    const data = await apiJson("/api/notifications?limit=8");
-    setNotifications(data.rows || []);
-    setUnreadNotifications(data.unread || 0);
+    const data = await apiJson("/api/attendance/today");
+    setToday(data.today);
+    if (data.today?.id) {
+      setTodaySiteVisits(await loadSiteVisits(data.today.id));
+    } else {
+      setTodaySiteVisits([]);
+    }
   }
 
   async function loadChatbotSettings() {
@@ -995,28 +962,6 @@ export default function Home() {
     }
   }
 
-  async function testChatbot(action: string) {
-    setChatbotTesting(action);
-    setMessage("");
-    try {
-      const data = await apiJson("/api/admin/chatbot", {
-        method: "POST",
-        body: JSON.stringify({ action, date: chatbotStatus?.date }),
-      });
-      const result = data.result;
-      const count = typeof result?.count === "number"
-        ? result.count
-        : Array.isArray(result?.results)
-          ? result.results.filter((item: { line?: { skipped?: boolean }; skipped?: boolean }) => !item.skipped && !item.line?.skipped).length
-          : 0;
-      setMessage(action === "all" ? `ทดสอบส่งแชทบอทครบแล้ว (${count} รายการ)` : "ทดสอบส่งแชทบอทแล้ว");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setChatbotTesting("");
-    }
-  }
-
   async function loadAccountData() {
     if (!authHeaders) return;
     const [attendanceData, leaveData] = await Promise.all([
@@ -1027,29 +972,20 @@ export default function Home() {
     setAccountLeaves(leaveData.rows || []);
   }
 
-  async function markNotificationRead(item: NotificationItem) {
-    if (!authHeaders) return;
-    if (!item.read_at) {
-      await apiJson(`/api/notifications/${item.id}`, { method: "PATCH" });
-      await loadNotifications();
-    }
-    if (item.link) window.location.href = item.link;
-  }
-
-  async function markAllNotificationsRead() {
-    if (!authHeaders || unreadNotifications === 0) return;
-    await apiJson("/api/notifications", {
-      method: "PATCH",
-      body: JSON.stringify({ all: true }),
-    });
-    await loadNotifications();
-  }
-
   function openView(nextView: ViewKey) {
     setView(nextView);
     setSidebarOpen(false);
-    setNotificationsOpen(false);
     setSidebarOpen(false);
+  }
+
+  async function openEvidence(row: Attendance) {
+    setSelectedEvidence(row);
+    setEvidenceSiteVisits([]);
+    try {
+      setEvidenceSiteVisits(await loadSiteVisits(row.id));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
   }
 
   async function captureLocation() {
@@ -1086,6 +1022,42 @@ export default function Home() {
     );
   }
 
+  async function captureSiteLocation() {
+    setMessage("");
+    if (!window.isSecureContext) {
+      setMessage("เบราว์เซอร์ต้องเปิดผ่าน HTTPS หรือ localhost จึงจะอ่านพิกัดได้");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setMessage("เบราว์เซอร์นี้ไม่รองรับการอ่านพิกัด");
+      return;
+    }
+    setSiteLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSiteForm((form) => ({
+          ...form,
+          location_lat: String(pos.coords.latitude),
+          location_lng: String(pos.coords.longitude),
+        }));
+        setMessage("บันทึกพิกัดไซต์จากอุปกรณ์แล้ว");
+        setSiteLocating(false);
+      },
+      (error) => {
+        const reason = error.code === error.PERMISSION_DENIED
+          ? "ยังไม่ได้อนุญาตให้ระบบเข้าถึงตำแหน่ง"
+          : error.code === error.POSITION_UNAVAILABLE
+            ? "อุปกรณ์ยังระบุตำแหน่งไม่ได้"
+            : error.code === error.TIMEOUT
+              ? "รอพิกัดนานเกินไป"
+              : "ไม่สามารถอ่านพิกัดจากอุปกรณ์ได้";
+        setMessage(reason);
+        setSiteLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
+
   async function submitCheckIn() {
     setLoading(true);
     setMessage("");
@@ -1097,11 +1069,10 @@ export default function Home() {
           location_lat: lat,
           location_lng: lng,
           location_address: locationAddress,
-          selfieBase64,
         }),
       });
       setToday(data.record);
-      await loadAttendance();
+      setTodaySiteVisits([]);
       setMessage("เช็คอินสำเร็จ");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -1116,15 +1087,37 @@ export default function Home() {
     try {
       const data = await apiJson("/api/attendance/check-out", {
         method: "POST",
-        body: JSON.stringify({ selfieBase64: checkoutSelfieBase64 }),
+        body: JSON.stringify({}),
       });
       setToday(data.record);
-      await loadAttendance();
       setMessage("เช็คเอาท์สำเร็จ");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function submitSiteVisit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!today?.id) return;
+    setSiteSaving(true);
+    setMessage("");
+    try {
+      const data = await apiJson("/api/site-visits", {
+        method: "POST",
+        body: JSON.stringify({
+          attendance_id: today.id,
+          ...siteForm,
+        }),
+      });
+      setTodaySiteVisits((rows) => [...rows, data.visit]);
+      setSiteForm(emptySiteVisitForm);
+      setMessage("บันทึกไซต์งานแล้ว");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSiteSaving(false);
     }
   }
 
@@ -1273,6 +1266,13 @@ export default function Home() {
       setProfileForm({
         full_name: data.user.full_name || "",
         phone: data.user.phone || "",
+        university: data.user.university || "",
+        faculty: data.user.faculty || "",
+        major: data.user.major || "",
+        mentor_name: data.user.mentor_name || "",
+        position: data.user.position || "",
+        internship_start_date: data.user.internship_start_date || "",
+        internship_end_date: data.user.internship_end_date || "",
         profileImageBase64: "",
       });
       await loadAccountData();
@@ -1297,20 +1297,19 @@ export default function Home() {
     setAccountAttendance([]);
     setAccountLeaves([]);
     setReportRows([]);
+    setTodaySiteVisits([]);
+    setEvidenceSiteVisits([]);
     setDashboardUsers([]);
     setDashboardRows([]);
     setDashboardLeaves([]);
     setLeaveRequests([]);
-    setAuditLogs([]);
-    setNotifications([]);
-    setUnreadNotifications(0);
-    setNotificationsOpen(false);
     setSelectedCorrection(null);
     setSelectedUser(null);
     setUserModalOpen(false);
+    setSiteForm(emptySiteVisitForm);
     setLeaveForm(emptyLeaveForm);
     setPasswordForm(emptyPasswordForm);
-    setProfileForm({ full_name: "", phone: "", profileImageBase64: "" });
+    setProfileForm(emptyProfileForm);
     setToday(null);
     setMessage("");
   }
@@ -1332,7 +1331,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!me || !token) return;
-    loadNotifications().catch((error) => setMessage(error.message));
     if (view === "dashboard" && me.role === "admin") loadDashboard().catch((error) => setMessage(error.message));
     if (view === "dashboard" && me.role === "intern") {
       loadAccountData().catch((error) => setMessage(error.message));
@@ -1342,12 +1340,10 @@ export default function Home() {
     if (view === "attendance") loadAttendance().catch((error) => setMessage(error.message));
     if (view === "leave") loadLeaveRequests().catch((error) => setMessage(error.message));
     if (view === "reports" && me.role === "admin") loadReportAttendance().catch((error) => setMessage(error.message));
-    if (view === "audit" && me.role === "admin") loadAuditLogs().catch((error) => setMessage(error.message));
     if (view === "chatbot" && me.role === "admin") loadChatbotSettings().catch((error) => setMessage(error.message));
     if (view === "account") loadAccountData().catch((error) => setMessage(error.message));
     if (view === "checkin") {
-      loadToday().catch((error) => setMessage(error.message));
-      loadAttendance().catch((error) => setMessage(error.message));
+      loadCheckInData().catch((error) => setMessage(error.message));
     }
   }, [me, token, view]);
 
@@ -1356,6 +1352,13 @@ export default function Home() {
     setProfileForm((form) => ({
       full_name: form.full_name || me.full_name || "",
       phone: form.phone || me.phone || "",
+      university: form.university || me.university || "",
+      faculty: form.faculty || me.faculty || "",
+      major: form.major || me.major || "",
+      mentor_name: form.mentor_name || me.mentor_name || "",
+      position: form.position || me.position || "",
+      internship_start_date: form.internship_start_date || me.internship_start_date || "",
+      internship_end_date: form.internship_end_date || me.internship_end_date || "",
       profileImageBase64: "",
     }));
   }, [me]);
@@ -1441,9 +1444,6 @@ export default function Home() {
               <button className={view === "reports" ? "nav-button active" : "nav-button"} onClick={() => openView("reports")}>
                 <BarChart3 size={18} /> รายงาน
               </button>
-              <button className={view === "audit" ? "nav-button active" : "nav-button"} onClick={() => openView("audit")}>
-                <ClipboardList size={18} /> ประวัติระบบ
-              </button>
               <button className={view === "chatbot" ? "nav-button active" : "nav-button"} onClick={() => openView("chatbot")}>
                 <Settings size={18} /> ตั้งค่าแชทบอท
               </button>
@@ -1475,8 +1475,8 @@ export default function Home() {
             <Menu size={20} /> เมนู
           </button>
           <div>
-            <h1>{view === "leave" ? (me.role === "admin" ? "อนุมัติคำขอลา" : "คำขอลา") : view === "dashboard" ? "Dashboard" : view === "checkin" ? "ลงเวลาฝึกงาน" : view === "users" ? "จัดการบัญชี" : view === "reports" ? "รายงานการฝึกงาน" : view === "audit" ? "ประวัติระบบ" : view === "chatbot" ? "ตั้งค่าแชทบอท" : view === "account" ? "โปรไฟล์ของฉัน" : "ตรวจสอบหลักฐานการลงเวลา"}</h1>
-            <p>{view === "leave" ? (me.role === "admin" ? "ตรวจสอบและอนุมัติคำขอลาของนักศึกษา" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${formatThaiDate(dashboardToday)}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "audit" ? "ติดตามการเข้าสู่ระบบ การแก้ไขข้อมูล และการอนุมัติรายการสำคัญ" : view === "chatbot" ? "ควบคุม LINE แจ้งเตือน เวลาแจ้งเตือน และวันหยุดที่ต้องข้าม" : view === "account" ? "ตรวจข้อมูลโปรไฟล์และเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
+            <h1>{view === "leave" ? (me.role === "admin" ? "อนุมัติคำขอลา" : "คำขอลา") : view === "dashboard" ? "Dashboard" : view === "checkin" ? "ลงเวลาฝึกงาน" : view === "users" ? "จัดการบัญชี" : view === "reports" ? "รายงานการฝึกงาน" : view === "chatbot" ? "ตั้งค่าแชทบอท" : view === "account" ? "โปรไฟล์ของฉัน" : "ตรวจสอบหลักฐานการลงเวลา"}</h1>
+            <p>{view === "leave" ? (me.role === "admin" ? "ตรวจสอบและอนุมัติคำขอลาของนักศึกษา" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${formatThaiDate(dashboardToday)}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "chatbot" ? "ควบคุม LINE แจ้งเตือน เวลาแจ้งเตือน และวันหยุดที่ต้องข้าม" : view === "account" ? "ตรวจข้อมูลโปรไฟล์และเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
           </div>
           <div className="topbar-actions">
             <button className="topbar-profile" type="button" onClick={() => openView("account")} title="My profile">
@@ -1492,44 +1492,6 @@ export default function Home() {
                 <small>{me.role === "admin" ? "Admin" : "Intern"}</small>
               </span>
             </button>
-            <div className="notification-menu">
-              <button className="icon-button notification-button" onClick={() => setNotificationsOpen((open) => !open)} title="การแจ้งเตือน">
-                <Bell size={19} />
-                {unreadNotifications > 0 && <span>{unreadNotifications > 9 ? "9+" : unreadNotifications}</span>}
-              </button>
-              {notificationsOpen && (
-                <section className="notification-panel">
-                  <div className="notification-header">
-                    <strong className="notification-title">
-                      <Mascot variant="bell" size="xs" animation={unreadNotifications > 0 ? "wiggle" : "none"} />
-                      การแจ้งเตือน
-                    </strong>
-                    <button className="ghost compact-button" onClick={markAllNotificationsRead} disabled={unreadNotifications === 0}>
-                      <CheckCheck size={16} /> อ่านทั้งหมด
-                    </button>
-                  </div>
-                  <div className="notification-list">
-                    {notifications.map((item) => (
-                      <button
-                        key={item.id}
-                        className={item.read_at ? "notification-item" : "notification-item unread"}
-                        onClick={() => markNotificationRead(item).catch((error) => setMessage(error.message))}
-                      >
-                        <strong>{item.title}</strong>
-                        <span>{item.message}</span>
-                        <small>{item.created_at}</small>
-                      </button>
-                    ))}
-                    {notifications.length === 0 && (
-                      <div className="notification-empty">
-                        <Mascot variant="bell" size="sm" animation="float" />
-                        <span>ยังไม่มีการแจ้งเตือน</span>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              )}
-            </div>
           </div>
         </header>
 
@@ -1609,14 +1571,6 @@ export default function Home() {
                   </label>
                 </div>
                 <RadiusMap lat={lat} lng={lng} label="ตำแหน่งที่ยืนยัน" />
-                <label>
-                  รูปเช็คอิน
-                  <input type="file" accept="image/*" capture="user" onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (file) setSelfieBase64(await fileToBase64(file));
-                  }} />
-                </label>
-                {selfieBase64 && <img className="selfie-preview" src={selfieBase64} alt="ตัวอย่างรูปเช็คอิน" />}
                 <button disabled={loading} onClick={submitCheckIn}><Fingerprint size={18} /> เช็คอิน</button>
               </div>
             )}
@@ -1625,16 +1579,59 @@ export default function Home() {
               <div className="action-card">
                 <h3>เช็คเอาท์</h3>
                 <p className="muted-line">ระบบจะคำนวณชั่วโมงจากเวลาเช็คอินของวันนี้</p>
-                <label>
-                  รูปเช็คเอาท์
-                  <input type="file" accept="image/*" capture="user" onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (file) setCheckoutSelfieBase64(await fileToBase64(file));
-                  }} />
-                </label>
-                {checkoutSelfieBase64 && <img className="selfie-preview" src={checkoutSelfieBase64} alt="ตัวอย่างรูปเช็คเอาท์" />}
                 <button disabled={loading} onClick={submitCheckOut}><LogOut size={18} /> เช็คเอาท์</button>
               </div>
+            )}
+
+            {today && (
+              <section className="action-card site-visit-card">
+                <h3>ไซต์ที่ไปวันนี้</h3>
+                {!today.check_out_time && (
+                  <form className="site-visit-form" onSubmit={submitSiteVisit}>
+                    <label>
+                      ชื่อไซต์
+                      <input
+                        value={siteForm.site_name}
+                        onChange={(e) => setSiteForm((form) => ({ ...form, site_name: e.target.value }))}
+                        placeholder="เช่น Site A / โครงการบางนา"
+                        required
+                      />
+                    </label>
+                    <label>
+                      สถานที่
+                      <input
+                        value={siteForm.location_address}
+                        onChange={(e) => setSiteForm((form) => ({ ...form, location_address: e.target.value }))}
+                        placeholder="ชื่ออาคาร / พื้นที่ / จุดที่ไป"
+                      />
+                    </label>
+                    <div className="inline-actions">
+                      <button type="button" className="ghost" onClick={captureSiteLocation} disabled={siteLocating}>
+                        <MapPin size={18} /> {siteLocating ? "กำลังดึงพิกัด..." : "ดึงพิกัดไซต์"}
+                      </button>
+                      <span>{siteForm.location_lat && siteForm.location_lng ? `${Number(siteForm.location_lat).toFixed(5)}, ${Number(siteForm.location_lng).toFixed(5)}` : "ยังไม่มีพิกัดไซต์"}</span>
+                    </div>
+                    <div className="coordinate-grid">
+                      <label>
+                        ละติจูด
+                        <input value={siteForm.location_lat} onChange={(e) => setSiteForm((form) => ({ ...form, location_lat: e.target.value }))} inputMode="decimal" placeholder="13.7563" />
+                      </label>
+                      <label>
+                        ลองจิจูด
+                        <input value={siteForm.location_lng} onChange={(e) => setSiteForm((form) => ({ ...form, location_lng: e.target.value }))} inputMode="decimal" placeholder="100.5018" />
+                      </label>
+                    </div>
+                    <label>
+                      หมายเหตุ
+                      <textarea rows={3} value={siteForm.notes} onChange={(e) => setSiteForm((form) => ({ ...form, notes: e.target.value }))} />
+                    </label>
+                    <button disabled={siteSaving}>
+                      <MapPin size={18} /> {siteSaving ? "กำลังบันทึก..." : "บันทึกไซต์"}
+                    </button>
+                  </form>
+                )}
+                <SiteVisitList rows={todaySiteVisits} emptyText="ยังไม่มีไซต์ที่บันทึกวันนี้" />
+              </section>
             )}
           </section>
         )}
@@ -1669,6 +1666,12 @@ export default function Home() {
                 <div><dt>บทบาท</dt><dd>{me.role === "admin" ? "Admin / HR" : "Intern"}</dd></div>
                 <div><dt>รหัส</dt><dd>{me.employee_code || me.intern_code || "-"}</dd></div>
                 <div><dt>แผนก</dt><dd>{me.department || "-"}</dd></div>
+                <div><dt>เบอร์โทร</dt><dd>{me.phone || "-"}</dd></div>
+                <div><dt>มหาวิทยาลัย</dt><dd>{me.university || "-"}</dd></div>
+                <div><dt>คณะ/สาขา</dt><dd>{[me.faculty, me.major].filter(Boolean).join(" / ") || "-"}</dd></div>
+                <div><dt>พี่เลี้ยง/อาจารย์</dt><dd>{me.mentor_name || "-"}</dd></div>
+                <div><dt>ตำแหน่งฝึกงาน</dt><dd>{me.position || "-"}</dd></div>
+                <div><dt>ช่วงฝึกงาน</dt><dd>{me.internship_start_date || "-"} - {me.internship_end_date || "-"}</dd></div>
               </dl>
             </div>
 
@@ -1707,6 +1710,36 @@ export default function Home() {
                 เบอร์โทร
                 <input value={profileForm.phone} onChange={(e) => setProfileForm((form) => ({ ...form, phone: e.target.value }))} inputMode="tel" />
               </label>
+              <label>
+                มหาวิทยาลัย
+                <input value={profileForm.university} onChange={(e) => setProfileForm((form) => ({ ...form, university: e.target.value }))} />
+              </label>
+              <label>
+                คณะ
+                <input value={profileForm.faculty} onChange={(e) => setProfileForm((form) => ({ ...form, faculty: e.target.value }))} />
+              </label>
+              <label>
+                สาขา/วิชาเอก
+                <input value={profileForm.major} onChange={(e) => setProfileForm((form) => ({ ...form, major: e.target.value }))} />
+              </label>
+              <label>
+                ชื่อพี่เลี้ยง/อาจารย์ที่ปรึกษา
+                <input value={profileForm.mentor_name} onChange={(e) => setProfileForm((form) => ({ ...form, mentor_name: e.target.value }))} />
+              </label>
+              <label>
+                ตำแหน่งฝึกงาน
+                <input value={profileForm.position} onChange={(e) => setProfileForm((form) => ({ ...form, position: e.target.value }))} />
+              </label>
+              <div className="coordinate-grid">
+                <label>
+                  วันเริ่มฝึกงาน
+                  <input type="date" value={profileForm.internship_start_date} onChange={(e) => setProfileForm((form) => ({ ...form, internship_start_date: e.target.value }))} />
+                </label>
+                <label>
+                  วันสิ้นสุดฝึกงาน
+                  <input type="date" value={profileForm.internship_end_date} onChange={(e) => setProfileForm((form) => ({ ...form, internship_end_date: e.target.value }))} />
+                </label>
+              </div>
               <button disabled={profileSaving}>
                 <UserRound size={18} /> {profileSaving ? "กำลังบันทึก..." : "บันทึกโปรไฟล์"}
               </button>
@@ -1793,13 +1826,11 @@ export default function Home() {
             today={chatbotStatus}
             holidayForm={holidayForm}
             saving={chatbotSaving}
-            testing={chatbotTesting}
             onSettingsChange={setChatbotSettings}
             onSaveSettings={() => saveChatbotSettings()}
             onHolidayFormChange={setHolidayForm}
             onAddHoliday={addHoliday}
             onRemoveHoliday={removeHoliday}
-            onTest={testChatbot}
           />
         )}
 
@@ -1812,32 +1843,12 @@ export default function Home() {
             from={reportFrom}
             to={reportTo}
             groupBy={reportGroupBy}
-            exportingSheet={reportExporting}
-            sheetUrl={reportSheetUrl}
             onQ={setReportQ}
             onFrom={setReportFrom}
             onTo={setReportTo}
             onGroupBy={setReportGroupBy}
             onFilter={loadReportAttendance}
             onExport={exportReportCsv}
-            onExportSheet={exportReportSheet}
-          />
-        )}
-
-        {view === "audit" && me.role === "admin" && (
-          <AuditLogPanel
-            rows={auditLogs}
-            q={auditQ}
-            action={auditAction}
-            from={auditFrom}
-            to={auditTo}
-            pagination={auditPagination}
-            onQ={setAuditQ}
-            onAction={setAuditAction}
-            onFrom={setAuditFrom}
-            onTo={setAuditTo}
-            onFilter={() => loadAuditLogs(1)}
-            onPageChange={loadAuditLogs}
           />
         )}
 
@@ -1875,7 +1886,7 @@ export default function Home() {
             <AttendanceTable
               rows={attendance}
               isAdmin={me.role === "admin"}
-              onEvidence={setSelectedEvidence}
+              onEvidence={openEvidence}
               onEdit={openCorrection}
               onDelete={deleteAttendanceRow}
             />
@@ -1992,6 +2003,10 @@ export default function Home() {
                 compact
               />
               {mapUrl(selectedEvidence) ? <a href={mapUrl(selectedEvidence)} target="_blank" rel="noreferrer">เปิด Google Maps</a> : <span>ไม่มีพิกัด GPS</span>}
+            </div>
+            <div className="map-panel">
+              <h3><MapPin size={18} /> ไซต์ที่ไปในวันนั้น</h3>
+              <SiteVisitList rows={evidenceSiteVisits} emptyText="ยังไม่มีไซต์ที่บันทึกไว้" />
             </div>
           </section>
         </div>
@@ -2597,26 +2612,22 @@ function ChatbotPanel({
   today,
   holidayForm,
   saving,
-  testing,
   onSettingsChange,
   onSaveSettings,
   onHolidayFormChange,
   onAddHoliday,
   onRemoveHoliday,
-  onTest,
 }: {
   settings: ChatbotSettings;
   holidays: Holiday[];
   today: ChatbotStatus | null;
   holidayForm: { date: string; name: string };
   saving: boolean;
-  testing: string;
   onSettingsChange: React.Dispatch<React.SetStateAction<ChatbotSettings>>;
   onSaveSettings: () => void;
   onHolidayFormChange: React.Dispatch<React.SetStateAction<{ date: string; name: string }>>;
   onAddHoliday: (event: React.FormEvent) => void;
   onRemoveHoliday: (id: string) => void;
-  onTest: (action: string) => void;
 }) {
   const toggleSetting = (key: keyof ChatbotSettings) => {
     onSettingsChange((current) => ({ ...current, [key]: !current[key] }));
@@ -2633,9 +2644,6 @@ function ChatbotPanel({
         </div>
         <Mascot variant={settings.line_enabled ? "bell" : "tools"} size="lg" animation={settings.line_enabled ? "wiggle" : "float"} className="hero-mascot" />
         <div className="dashboard-actions">
-          <button onClick={() => onTest("all")} disabled={Boolean(testing)}>
-            <Send size={18} /> {testing === "all" ? "กำลังทดสอบ..." : "ทดสอบทั้งหมด"}
-          </button>
           <button className="ghost" onClick={onSaveSettings} disabled={saving}>
             <Settings size={18} /> {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
@@ -2660,46 +2668,7 @@ function ChatbotPanel({
               <input type="checkbox" checked={settings.skip_non_workdays} onChange={() => toggleSetting("skip_non_workdays")} />
               <span><strong>ข้ามเสาร์-อาทิตย์และวันหยุด</strong><small>ใช้ตาราง Holidays ด้านล่าง</small></span>
             </label>
-            <label className="toggle-row">
-              <input type="checkbox" checked={settings.check_in_enabled} onChange={() => toggleSetting("check_in_enabled")} />
-              <span><strong>เตือนเช็คอิน</strong><small>ส่งรายชื่อคนที่ยังไม่เช็คอิน</small></span>
-            </label>
-            <label className="toggle-row">
-              <input type="checkbox" checked={settings.check_out_enabled} onChange={() => toggleSetting("check_out_enabled")} />
-              <span><strong>เตือนเช็คเอาท์</strong><small>ส่งรายชื่อคนที่เช็คอินแล้วแต่ยังไม่เช็คเอาท์</small></span>
-            </label>
-            <label className="toggle-row">
-              <input type="checkbox" checked={settings.summary_enabled} onChange={() => toggleSetting("summary_enabled")} />
-              <span><strong>สรุปวันนี้</strong><small>ส่งตัวเลขสรุปประจำวัน</small></span>
-            </label>
           </div>
-        </div>
-
-        <div className="dashboard-panel chatbot-settings-card">
-          <div className="panel-heading">
-            <div>
-              <span>SCHEDULE</span>
-              <h3>เวลาแจ้งเตือน</h3>
-            </div>
-            <Clock3 size={22} />
-          </div>
-          <div className="chatbot-time-grid">
-            <label>เตือนเช็คอิน<input type="time" value={settings.check_in_time} readOnly aria-readonly="true" /></label>
-            <label>เตือนเช็คเอาท์<input type="time" value={settings.check_out_time} readOnly aria-readonly="true" /></label>
-            <label>สรุปวันนี้<input type="time" value={settings.summary_time} readOnly aria-readonly="true" /></label>
-          </div>
-          <div className="chatbot-test-grid">
-            <button className="ghost" onClick={() => onTest("check-in-reminder")} disabled={Boolean(testing)}>
-              <Send size={16} /> {testing === "check-in-reminder" ? "กำลังส่ง..." : "ทดสอบเช็คอิน"}
-            </button>
-            <button className="ghost" onClick={() => onTest("check-out-reminder")} disabled={Boolean(testing)}>
-              <Send size={16} /> {testing === "check-out-reminder" ? "กำลังส่ง..." : "ทดสอบเช็คเอาท์"}
-            </button>
-            <button className="ghost" onClick={() => onTest("summary")} disabled={Boolean(testing)}>
-              <Send size={16} /> {testing === "summary" ? "กำลังส่ง..." : "ทดสอบสรุป"}
-            </button>
-          </div>
-          <p className="muted-line">เวลาในหน้านี้เป็นเวลาประเทศไทย cron ปัจจุบันตั้งไว้ที่ 09:00, 17:30, 17:45 บน Vercel</p>
         </div>
       </section>
 
@@ -2738,88 +2707,6 @@ function ChatbotPanel({
   );
 }
 
-function AuditLogPanel({
-  rows,
-  q,
-  action,
-  from,
-  to,
-  pagination,
-  onQ,
-  onAction,
-  onFrom,
-  onTo,
-  onFilter,
-  onPageChange,
-}: {
-  rows: AuditLog[];
-  q: string;
-  action: string;
-  from: string;
-  to: string;
-  pagination: PaginationMeta;
-  onQ: (value: string) => void;
-  onAction: (value: string) => void;
-  onFrom: (value: string) => void;
-  onTo: (value: string) => void;
-  onFilter: () => void;
-  onPageChange: (page: number) => void;
-}) {
-  return (
-    <>
-      <section className="filter-panel audit-filter">
-        <label><Search size={16} /> ค้นหา<input value={q} onChange={(e) => onQ(e.target.value)} placeholder="ผู้ใช้ / action / รายละเอียด" /></label>
-        <label>
-          Action
-          <select value={action} onChange={(e) => onAction(e.target.value)}>
-            <option value="">ทั้งหมด</option>
-            <option value="LOGIN">เข้าสู่ระบบ</option>
-            <option value="LOGIN_FAILED">เข้าสู่ระบบไม่สำเร็จ</option>
-            <option value="CHANGE_PASSWORD">เปลี่ยนรหัสผ่าน</option>
-            <option value="CREATE_USER">เพิ่มบัญชี</option>
-            <option value="UPDATE_USER">แก้ไขบัญชี</option>
-            <option value="DELETE_USER">ลบบัญชี</option>
-            <option value="UPDATE_ATTENDANCE">แก้ไขเวลา</option>
-            <option value="DELETE_ATTENDANCE">ลบเวลา</option>
-            <option value="LEAVE_APPROVE">อนุมัติลา</option>
-            <option value="LEAVE_REJECT">ไม่อนุมัติลา</option>
-          </select>
-        </label>
-        <label>ตั้งแต่<input type="date" value={from} onChange={(e) => onFrom(e.target.value)} /></label>
-        <label>ถึง<input type="date" value={to} onChange={(e) => onTo(e.target.value)} /></label>
-        <button onClick={onFilter}><Search size={18} /> กรอง</button>
-      </section>
-
-      <section className="table-card audit-table">
-        <table>
-          <thead>
-            <tr>
-              <th>เวลา</th>
-              <th>ผู้ใช้</th>
-              <th>Action</th>
-              <th>เป้าหมาย</th>
-              <th>รายละเอียด</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td>{row.created_at ? new Date(row.created_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }) : "-"}</td>
-                <td><strong>{row.user_name || "-"}</strong></td>
-                <td><span className="audit-action">{auditActionText(row.action)}</span></td>
-                <td>{row.target_type || "-"}{row.target_id ? ` / ${row.target_id.slice(0, 12)}` : ""}</td>
-                <td>{auditDetailsText(row.details)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 && <div className="empty">ยังไม่มีประวัติระบบตามเงื่อนไขนี้</div>}
-      </section>
-      <PaginationControls pagination={pagination} onPageChange={onPageChange} />
-    </>
-  );
-}
-
 function ReportsPanel({
   rows,
   groups,
@@ -2828,15 +2715,12 @@ function ReportsPanel({
   from,
   to,
   groupBy,
-  exportingSheet,
-  sheetUrl,
   onQ,
   onFrom,
   onTo,
   onGroupBy,
   onFilter,
   onExport,
-  onExportSheet,
 }: {
   rows: Attendance[];
   groups: Array<{
@@ -2862,15 +2746,12 @@ function ReportsPanel({
   from: string;
   to: string;
   groupBy: ReportGroupBy;
-  exportingSheet: boolean;
-  sheetUrl: string;
   onQ: (value: string) => void;
   onFrom: (value: string) => void;
   onTo: (value: string) => void;
   onGroupBy: (value: ReportGroupBy) => void;
   onFilter: () => void;
   onExport: () => void;
-  onExportSheet: () => void;
 }) {
   return (
     <>
@@ -2890,12 +2771,7 @@ function ReportsPanel({
           </select>
         </label>
         <button className="ghost" onClick={onExport} disabled={rows.length === 0}><Download size={18} /> Export CSV</button>
-        <button className="ghost" onClick={onExportSheet} disabled={rows.length === 0 || exportingSheet}>
-          <FileSpreadsheet size={18} /> {exportingSheet ? "Creating..." : "Export Google Sheet"}
-        </button>
       </section>
-
-      {sheetUrl && <a className="sheet-export-link" href={sheetUrl} target="_blank" rel="noreferrer">เปิด Google Sheet รายงานล่าสุด</a>}
 
       <section className="report-metrics">
         <div><span>รายการทั้งหมด</span><strong>{summary.totalRows}</strong></div>
@@ -3144,6 +3020,25 @@ function PaginationControls({
         </button>
       </div>
     </nav>
+  );
+}
+
+function SiteVisitList({ rows, emptyText }: { rows: SiteVisit[]; emptyText: string }) {
+  if (rows.length === 0) return <div className="mini-empty">{emptyText}</div>;
+
+  return (
+    <div className="site-visit-list">
+      {rows.map((row) => (
+        <div key={row.id} className="site-visit-row">
+          <div>
+            <strong>{row.site_name || row.location_address || "-"}</strong>
+            <span>{formatVisitTime(row.visited_at)}{row.location_address ? ` · ${row.location_address}` : ""}</span>
+            {row.notes && <small>{row.notes}</small>}
+          </div>
+          {siteVisitMapUrl(row) && <a href={siteVisitMapUrl(row)} target="_blank" rel="noreferrer">แผนที่</a>}
+        </div>
+      ))}
+    </div>
   );
 }
 

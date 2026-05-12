@@ -2012,6 +2012,49 @@ textarea {
   margin: 0;
 }
 
+.site-visit-card {
+  grid-column: 1 / -1;
+}
+
+.site-visit-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.site-visit-list {
+  display: grid;
+  gap: 10px;
+}
+
+.site-visit-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.site-visit-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.site-visit-row span,
+.site-visit-row small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.site-visit-row a {
+  align-self: start;
+  color: var(--brand);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .selfie-preview {
   width: 148px;
   height: 148px;

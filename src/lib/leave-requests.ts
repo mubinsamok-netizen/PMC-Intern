@@ -3,7 +3,7 @@ import { appendRow, ensureHeaders, getRows, updateRow, type SheetRow } from "@/l
 import type { SessionUser } from "@/lib/auth/session";
 import { createNotification, createNotificationsForAdmins } from "@/lib/notifications";
 import { findUserByEmail } from "@/lib/users";
-import { notifyLineLeaveRequest, notifyLineLeaveReview } from "@/lib/line";
+import { notifyLineLeaveRequest } from "@/lib/line";
 import { uploadBase64File } from "@/lib/google/drive";
 import { businessDayCount } from "@/lib/workdays";
 
@@ -198,9 +198,8 @@ export async function reviewLeaveRequest(sessionUser: SessionUser, id: string, d
     updated_at: new Date().toISOString(),
   };
 
-  await updateRow(LEAVE_REQUESTS_SHEET, headers, Number(row._rowNumber), updates);
+  await updateRow(LEAVE_REQUESTS_SHEET, headers, Number(row._rowNumber), updates, row);
   const formatted = formatRequest({ ...row, ...updates });
-  notifyLineLeaveReview(formatted).catch((error) => console.error(error));
   createNotification(
     formatted.user_id,
     "leave_review",

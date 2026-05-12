@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const action = req.nextUrl.searchParams.get("action") || "summary";
+    const action = req.nextUrl.searchParams.get("action") || "disabled";
     const date = req.nextUrl.searchParams.get("date") || undefined;
     const force = req.nextUrl.searchParams.get("force") === "true";
     const result = await runLineAutomation(action, date, { force });
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const result = await runLineAutomation(
-      String(body.action || "summary"),
+      String(body.action || "disabled"),
       body.date ? String(body.date) : undefined,
       { force: body.force === true || body.force === "true" },
     );

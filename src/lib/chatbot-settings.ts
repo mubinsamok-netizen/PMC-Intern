@@ -100,7 +100,7 @@ export async function updateChatbotSettings(input: Partial<Record<SettingKey, un
     const existing = rows.find((row) => row.key === key);
     const record = { key, value, updated_at: now, updated_by: updatedBy };
     if (existing) {
-      await updateRow(CHATBOT_SETTINGS_SHEET, headers, Number(existing._rowNumber), record);
+      await updateRow(CHATBOT_SETTINGS_SHEET, headers, Number(existing._rowNumber), record, existing);
     } else {
       await appendRow(CHATBOT_SETTINGS_SHEET, headers, record);
     }
@@ -110,8 +110,8 @@ export async function updateChatbotSettings(input: Partial<Record<SettingKey, un
 }
 
 export function isChatbotActionEnabled(action: string, settings: ChatbotSettings) {
-  if (action === "check-in-reminder") return settings.check_in_enabled;
-  if (action === "check-out-reminder") return settings.check_out_enabled;
-  if (action === "summary") return settings.summary_enabled;
+  if (action === "check-in-reminder") return false;
+  if (action === "check-out-reminder") return false;
+  if (action === "summary") return false;
   return true;
 }

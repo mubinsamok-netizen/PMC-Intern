@@ -1,9 +1,8 @@
 import { randomUUID } from "crypto";
 import { appendRow, ensureHeaders, getRows, updateRow, type SheetRow } from "@/lib/google/sheets";
-import { uploadBase64Image } from "@/lib/google/drive";
 import type { SessionUser } from "@/lib/auth/session";
 import { findUserByEmail } from "@/lib/users";
-import { notifyLineCheckIn, notifyLineCheckOut } from "@/lib/line";
+import { notifyLineCheckIn } from "@/lib/line";
 import { createNotificationsForAdmins } from "@/lib/notifications";
 
 const ATTENDANCE_SHEET = "Attendance";
@@ -223,11 +222,6 @@ export async function checkIn(sessionUser: SessionUser, data: Record<string, unk
   }
 
   const mode = WORK_MODES.includes(text(data.work_mode)) ? text(data.work_mode) : "Office";
-  let selfieUrl = "";
-  if (data.selfieBase64) {
-    const upload = await uploadBase64Image(text(data.selfieBase64), "selfies", `in_${sessionUser.id}_${Date.now()}`);
-    selfieUrl = upload.url;
-  }
 
   const record = {
     id: randomUUID(),
@@ -246,8 +240,8 @@ export async function checkIn(sessionUser: SessionUser, data: Record<string, unk
     location_lat: text(data.location_lat),
     location_lng: text(data.location_lng),
     location_address: text(data.location_address),
-    selfie_url: selfieUrl,
-    checkin_selfie_url: selfieUrl,
+    selfie_url: "",
+    checkin_selfie_url: "",
     checkout_selfie_url: "",
     status: "checked_in",
     total_hours: "0",
@@ -279,23 +273,16 @@ export async function checkOut(sessionUser: SessionUser, data: Record<string, un
   if (!row) throw new Error("วันนี้ยังไม่ได้เช็คอิน");
   if (row.check_out_time) throw new Error("วันนี้เช็คเอาท์แล้ว ระบบกำหนดวันละ 1 รอบ");
 
-  let outSelfie = "";
-  if (data.selfieBase64) {
-    const upload = await uploadBase64Image(text(data.selfieBase64), "selfies", `out_${sessionUser.id}_${Date.now()}`);
-    outSelfie = upload.url;
-  }
-
   const totalHours = calcHours(normalizeTime(row.check_in_time), now.time);
   const updates = {
     check_out_time: now.time,
-    checkout_selfie_url: outSelfie,
+    checkout_selfie_url: "",
     status: "checked_out",
     total_hours: String(totalHours),
     updated_at: new Date().toISOString(),
   };
-  await updateRow(ATTENDANCE_SHEET, headers, Number(row._rowNumber), updates);
+  await updateRow(ATTENDANCE_SHEET, headers, Number(row._rowNumber), updates, row);
   const formatted = formatRecord({ ...row, ...updates });
-  notifyLineCheckOut(formatted).catch((error) => console.error(error));
   createNotificationsForAdmins(
     "checkout",
     "นักศึกษาฝึกงานเช็คเอาท์",
@@ -314,7 +301,7 @@ export async function deleteAttendance(sessionUser: SessionUser, id: string) {
   await updateRow(ATTENDANCE_SHEET, headers, Number(row._rowNumber), {
     status: "deleted",
     updated_at: new Date().toISOString(),
-  });
+  }, row);
   return { ok: true };
 }
 
@@ -353,7 +340,7 @@ export async function updateAttendance(sessionUser: SessionUser, id: string, dat
     updated_at: new Date().toISOString(),
   };
 
-  await updateRow(ATTENDANCE_SHEET, headers, Number(row._rowNumber), updates);
+  await updateRow(ATTENDANCE_SHEET, headers, Number(row._rowNumber), updates, row);
   const formatted = formatRecord({ ...row, ...updates });
   createNotificationsForAdmins(
     "correction",

@@ -109,7 +109,7 @@ export async function updateHoliday(id: string, input: { date?: unknown; name?: 
     updated_at: new Date().toISOString(),
   };
 
-  await updateRow(HOLIDAYS_SHEET, headers, Number(row._rowNumber), next);
+  await updateRow(HOLIDAYS_SHEET, headers, Number(row._rowNumber), next, row);
   return formatHoliday({ ...row, ...next });
 }
 

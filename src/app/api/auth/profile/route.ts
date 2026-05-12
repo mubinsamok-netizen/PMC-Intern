@@ -39,7 +39,18 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const updates: Record<string, string> = {};
     let oldProfileFileId = "";
-    const allowed = ["full_name", "phone", "profile_image"];
+    const allowed = [
+      "full_name",
+      "phone",
+      "profile_image",
+      "university",
+      "faculty",
+      "major",
+      "mentor_name",
+      "position",
+      "internship_start_date",
+      "internship_end_date",
+    ];
     allowed.forEach((key) => {
       if (body[key] !== undefined) updates[key] = text(body[key]);
     });
@@ -54,7 +65,7 @@ export async function PATCH(req: NextRequest) {
       updates.profile_image = upload.url;
     }
 
-    if (!updates.full_name && !updates.phone && !updates.profile_image) {
+    if (Object.keys(updates).length === 0) {
       return NextResponse.json({ ok: false, error: "ไม่มีข้อมูลสำหรับบันทึก" }, { status: 400 });
     }
 
