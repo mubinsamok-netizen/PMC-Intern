@@ -330,13 +330,21 @@ const emptyPagination: PaginationMeta = {
 };
 
 function mapUrl(row: Attendance) {
-  if (!row.location_lat || !row.location_lng) return "";
+  if (!hasUsableCoordinate(row.location_lat, row.location_lng)) return "";
   return `https://www.google.com/maps?q=${encodeURIComponent(`${row.location_lat},${row.location_lng}`)}`;
 }
 
 function siteVisitMapUrl(row: SiteVisit) {
-  if (!row.location_lat || !row.location_lng) return "";
+  if (!hasUsableCoordinate(row.location_lat, row.location_lng)) return "";
   return `https://www.google.com/maps?q=${encodeURIComponent(`${row.location_lat},${row.location_lng}`)}`;
+}
+
+function hasUsableCoordinate(lat: string | number | undefined, lng: string | number | undefined) {
+  const latValue = Number(lat);
+  const lngValue = Number(lng);
+  if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return false;
+  if (Math.abs(latValue) > 90 || Math.abs(lngValue) > 180) return false;
+  return Math.abs(latValue) > 0.0001 || Math.abs(lngValue) > 0.0001;
 }
 
 function formatVisitTime(value?: string) {
@@ -2459,7 +2467,7 @@ function DashboardPanel({
     return data.todayRows.flatMap((row) => {
       const latValue = Number(row.location_lat);
       const lngValue = Number(row.location_lng);
-      if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return [];
+      if (!hasUsableCoordinate(latValue, lngValue)) return [];
 
       const user = usersByKey.get(row.user_id || "") || usersByKey.get(attendanceCode(row));
       return [{

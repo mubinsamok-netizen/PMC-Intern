@@ -48,6 +48,12 @@ function statusLabel(location: StudentLocation) {
   return location.status || "-";
 }
 
+function hasUsableCoordinate(location: StudentLocation) {
+  if (!Number.isFinite(location.lat) || !Number.isFinite(location.lng)) return false;
+  if (Math.abs(location.lat) > 90 || Math.abs(location.lng) > 180) return false;
+  return Math.abs(location.lat) > 0.0001 || Math.abs(location.lng) > 0.0001;
+}
+
 function buildPopup(location: StudentLocation) {
   const wrapper = document.createElement("div");
   wrapper.className = "student-map-popup";
@@ -106,7 +112,7 @@ export function StudentLocationMap({ locations }: StudentLocationMapProps) {
   const layerRef = useRef<LayerGroup | null>(null);
 
   useEffect(() => {
-    const points = locations.filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
+    const points = locations.filter(hasUsableCoordinate);
     if (!elRef.current || points.length === 0) return;
 
     let cancelled = false;
@@ -118,15 +124,17 @@ export function StudentLocationMap({ locations }: StudentLocationMapProps) {
       if (!mapRef.current) {
         mapRef.current = L.map(elRef.current, {
           zoomControl: true,
-          attributionControl: false,
+          attributionControl: true,
           scrollWheelZoom: false,
           doubleClickZoom: true,
           boxZoom: true,
           keyboard: false,
         });
 
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 19,
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+          maxZoom: 20,
+          subdomains: "abcd",
+          attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
         }).addTo(mapRef.current);
       }
 
@@ -185,10 +193,10 @@ export function StudentLocationMap({ locations }: StudentLocationMapProps) {
     };
   }, []);
 
-  if (locations.length === 0) {
+  if (locations.filter(hasUsableCoordinate).length === 0) {
     return (
       <div className="student-location-map empty">
-        <span>ยังไม่มีพิกัดเช็คอินสำหรับวันนี้</span>
+        <span>ยังไม่มีพิกัดที่ถูกต้องสำหรับแสดงบนแผนที่วันนี้</span>
       </div>
     );
   }

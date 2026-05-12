@@ -1311,7 +1311,7 @@ textarea {
 
 .student-location-panel {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
 .student-location-panel .panel-heading h3 {
@@ -1322,9 +1322,9 @@ textarea {
 
 .student-location-map {
   position: relative;
-  min-height: 360px;
+  min-height: clamp(480px, 58vh, 680px);
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 18px;
   border: 1px solid #dbe3ef;
   background:
     linear-gradient(135deg, rgba(15, 23, 42, 0.06), rgba(15, 23, 42, 0)),
@@ -1332,7 +1332,7 @@ textarea {
 }
 
 .student-location-map.empty {
-  min-height: 220px;
+  min-height: clamp(300px, 42vh, 460px);
   display: grid;
   place-items: center;
   color: var(--muted);
@@ -2853,7 +2853,7 @@ th {
   }
 
   .student-location-map {
-    min-height: 300px;
+    min-height: 380px;
   }
 
   .status-grid,
