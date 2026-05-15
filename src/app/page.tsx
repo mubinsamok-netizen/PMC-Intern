@@ -151,6 +151,10 @@ type LeaveRequest = {
 };
 
 type ViewKey = "dashboard" | "attendance" | "checkin" | "leave" | "users" | "reports" | "chatbot" | "account";
+type AdminViewKey = ViewKey | "internships";
+type InternTimelineStatus = "not_started" | "active" | "ending_soon" | "ended" | "missing";
+type AttendanceRangeTab = "today" | "yesterday" | "all" | "custom";
+type AttendanceQuickRange = Exclude<AttendanceRangeTab, "custom">;
 type ReportGroupBy = "user" | "department" | "university" | "work_mode" | "date";
 
 type PaginationMeta = {
@@ -158,6 +162,15 @@ type PaginationMeta = {
   pageSize: number;
   total: number;
   totalPages: number;
+};
+
+type InternTimelineRow = {
+  user: User;
+  startDate: string;
+  endDate: string;
+  calendarDaysRemaining: number | null;
+  totalDays: number | null;
+  status: InternTimelineStatus;
 };
 
 type CorrectionForm = {
@@ -251,6 +264,12 @@ const workModes = [
   { value: "Site", label: "Site", hint: "ไซต์งาน" },
   { value: "WFH", label: "WFH", hint: "ที่พัก/ออนไลน์" },
   { value: "Field", label: "Field", hint: "นอกสถานที่" },
+];
+
+const attendanceRangeTabs: Array<{ value: AttendanceQuickRange; label: string }> = [
+  { value: "today", label: "วันนี้" },
+  { value: "yesterday", label: "เมื่อวาน" },
+  { value: "all", label: "ทั้งหมด" },
 ];
 
 const emptyCorrectionForm: CorrectionForm = {
@@ -447,6 +466,15 @@ function dateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function attendanceRangeDates(range: AttendanceQuickRange) {
+  if (range === "all") return { from: "", to: "" };
+  const today = bangkokDateString();
+  const date = range === "yesterday"
+    ? bangkokDateString(addDays(parseDateOnly(today) || new Date(), -1))
+    : today;
+  return { from: date, to: date };
+}
+
 function countWeekdays(startValue?: string, endValue?: string) {
   const start = parseDateOnly(startValue);
   const end = parseDateOnly(endValue);
@@ -457,6 +485,53 @@ function countWeekdays(startValue?: string, endValue?: string) {
     if (day !== 0 && day !== 6) count += 1;
   }
   return count;
+}
+
+function calendarDaysRemaining(startValue: string, endValue: string, todayValue: string) {
+  const start = parseDateOnly(startValue);
+  const end = parseDateOnly(endValue);
+  const today = parseDateOnly(todayValue);
+  if (!start || !end || !today || end < start) return null;
+  const anchor = today < start ? start : today;
+  return Math.max(0, Math.ceil((end.getTime() - anchor.getTime()) / 86400000));
+}
+
+function totalInternshipDays(startValue: string, endValue: string) {
+  const start = parseDateOnly(startValue);
+  const end = parseDateOnly(endValue);
+  if (!start || !end || end < start) return null;
+  return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function internTimelineStatus(startValue: string, endValue: string, todayValue: string): InternTimelineStatus {
+  const start = parseDateOnly(startValue);
+  const end = parseDateOnly(endValue);
+  const today = parseDateOnly(todayValue);
+  if (!start || !end || !today || end < start) return "missing";
+  if (today < start) return "not_started";
+  if (today > end) return "ended";
+  const remaining = calendarDaysRemaining(startValue, endValue, todayValue);
+  return remaining !== null && remaining <= 14 ? "ending_soon" : "active";
+}
+
+function internTimelineStatusText(status: InternTimelineStatus) {
+  if (status === "not_started") return "ยังไม่เริ่ม";
+  if (status === "active") return "กำลังฝึก";
+  if (status === "ending_soon") return "ใกล้จบ";
+  if (status === "ended") return "สิ้นสุดแล้ว";
+  return "ยังไม่กำหนดวัน";
+}
+
+function internTimelineStatusClass(status: InternTimelineStatus) {
+  if (status === "active") return "chip success";
+  if (status === "ending_soon") return "chip warning";
+  if (status === "ended") return "chip neutral";
+  if (status === "not_started") return "chip info";
+  return "chip muted";
+}
+
+function remainingDaysText(value: number | null) {
+  return value === null ? "-" : `${value} วัน`;
 }
 
 function reportGroupKey(row: Attendance, groupBy: ReportGroupBy) {
@@ -484,7 +559,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
   const [me, setMe] = useState<User | null>(null);
-  const [view, setView] = useState<ViewKey>("dashboard");
+  const [view, setView] = useState<AdminViewKey>("dashboard");
   const [users, setUsers] = useState<User[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [accountAttendance, setAccountAttendance] = useState<Attendance[]>([]);
@@ -494,7 +569,6 @@ export default function Home() {
   const [evidenceSiteVisits, setEvidenceSiteVisits] = useState<SiteVisit[]>([]);
   const [dashboardUsers, setDashboardUsers] = useState<User[]>([]);
   const [dashboardRows, setDashboardRows] = useState<Attendance[]>([]);
-  const [dashboardLeaves, setDashboardLeaves] = useState<LeaveRequest[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>(defaultChatbotSettings);
@@ -513,8 +587,9 @@ export default function Home() {
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
   const [attQ, setAttQ] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [attendanceRange, setAttendanceRange] = useState<AttendanceRangeTab>("today");
+  const [from, setFrom] = useState(() => bangkokDateString());
+  const [to, setTo] = useState(() => bangkokDateString());
   const [reportQ, setReportQ] = useState("");
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
@@ -626,57 +701,58 @@ export default function Home() {
     const todayKeys = new Set(todayRows.map((row) => row.user_id || attendanceCode(row)));
     const absent = interns.filter((user) => !todayKeys.has(user.id) && !todayKeys.has(user.employee_code || user.intern_code || "-"));
 
-    const hoursByUser = new Map<string, number>();
-    const daysByUser = new Map<string, Set<string>>();
-    dashboardRows.forEach((row) => {
-      const key = row.user_id || attendanceCode(row);
-      hoursByUser.set(key, (hoursByUser.get(key) || 0) + numericHours(row));
-      const days = daysByUser.get(key) || new Set<string>();
-      if (row.check_in_date) days.add(row.check_in_date);
-      daysByUser.set(key, days);
-    });
-
-    const leaveDaysByUser = new Map<string, number>();
-    dashboardLeaves
-      .filter((row) => row.status === "approved")
-      .forEach((row) => {
-        leaveDaysByUser.set(row.user_id, (leaveDaysByUser.get(row.user_id) || 0) + Number(row.total_days || 0));
-      });
-
-    const progress = interns
-      .map((user) => {
-        const key = user.id;
-        const fallbackKey = user.employee_code || user.intern_code || "-";
-        const totalHours = hoursByUser.get(key) || hoursByUser.get(fallbackKey) || 0;
-        const attendedDays = (daysByUser.get(key) || daysByUser.get(fallbackKey) || new Set<string>()).size;
-        const approvedLeaveDays = leaveDaysByUser.get(key) || 0;
-        const plannedDays = Number(user.required_days || 0) || countWeekdays(user.internship_start_date, user.internship_end_date);
-        const elapsedDays = countWeekdays(user.internship_start_date, dashboardToday);
-        const remainingDays = Math.max(0, countWeekdays(bangkokDateString(addDays(parseDateOnly(dashboardToday) || new Date(), 1)), user.internship_end_date));
-        const absentDays = Math.max(0, elapsedDays - attendedDays - approvedLeaveDays);
-        const requiredHours = Number(user.required_hours || 0);
-        const percent = requiredHours > 0 ? Math.min(100, Math.round((totalHours / requiredHours) * 100)) : 0;
-        const endDate = parseDateOnly(user.internship_end_date || "");
-        const daysToEnd = endDate ? Math.ceil((endDate.getTime() - (parseDateOnly(dashboardToday) || new Date()).getTime()) / 86400000) : null;
-        return { user, totalHours, requiredHours, percent, attendedDays, approvedLeaveDays, absentDays, plannedDays, remainingDays, daysToEnd };
-      })
-      .sort((a, b) => b.totalHours - a.totalHours)
-      .slice(0, 6);
-
     return {
       interns,
       todayRows,
       absent,
-      progress,
       recentRows: dashboardRows.slice(0, 8),
       checkedOut: todayRows.filter((row) => row.status === "checked_out").length,
       late: todayRows.filter((row) => row.is_late).length,
-      todayHours: todayRows.reduce((sum, row) => sum + numericHours(row), 0),
     };
-  }, [dashboardLeaves, dashboardRows, dashboardToday, dashboardUsers]);
+  }, [dashboardRows, dashboardToday, dashboardUsers]);
+
+  const internTimeline = useMemo<InternTimelineRow[]>(() => {
+    const statusOrder: Record<InternTimelineStatus, number> = {
+      ending_soon: 0,
+      active: 1,
+      not_started: 2,
+      ended: 3,
+      missing: 4,
+    };
+
+    return dashboardUsers
+      .filter((user) => user.role === "intern" && (user.status || "active") === "active")
+      .map((user) => {
+        const startDate = user.internship_start_date || "";
+        const endDate = user.internship_end_date || "";
+        const status = internTimelineStatus(startDate, endDate, dashboardToday);
+        return {
+          user,
+          startDate,
+          endDate,
+          calendarDaysRemaining: calendarDaysRemaining(startDate, endDate, dashboardToday),
+          totalDays: totalInternshipDays(startDate, endDate),
+          status,
+        };
+      })
+      .sort((a, b) => {
+        const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+        if (statusDiff !== 0) return statusDiff;
+        const aDays = a.calendarDaysRemaining ?? Number.POSITIVE_INFINITY;
+        const bDays = b.calendarDaysRemaining ?? Number.POSITIVE_INFINITY;
+        if (aDays !== bDays) return aDays - bDays;
+        return a.user.full_name.localeCompare(b.user.full_name, "th");
+      });
+  }, [dashboardToday, dashboardUsers]);
+
+  const internTimelineSummary = useMemo(() => ({
+    active: internTimeline.filter((row) => row.status === "active").length,
+    endingSoon: internTimeline.filter((row) => row.status === "ending_soon").length,
+  }), [internTimeline]);
 
   const myProgress = useMemo(() => {
     if (!me) return null;
+    if (me.role !== "intern") return null;
     const myRows = accountAttendance.filter((row) => row.user_id === me.id || attendanceCode(row) === (me.employee_code || me.intern_code || "-"));
     const myLeave = accountLeaves.filter((row) => row.user_id === me.id && row.status === "approved");
     const totalHours = myRows.reduce((sum, row) => sum + numericHours(row), 0);
@@ -752,12 +828,18 @@ export default function Home() {
     setUsersPage(data.pagination?.page || page);
   }
 
-  async function loadAttendance(page = attendancePage) {
+  async function loadAttendance(
+    page = attendancePage,
+    filters: { q?: string; from?: string; to?: string } = {},
+  ) {
     if (!authHeaders) return;
+    const activeQ = filters.q ?? attQ;
+    const activeFrom = filters.from ?? from;
+    const activeTo = filters.to ?? to;
     const params = new URLSearchParams();
-    if (attQ) params.set("q", attQ);
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
+    if (activeQ) params.set("q", activeQ);
+    if (activeFrom) params.set("from", activeFrom);
+    if (activeTo) params.set("to", activeTo);
     params.set("page", String(page));
     params.set("pageSize", "50");
     const data = await apiJson(`/api/attendance?${params.toString()}`);
@@ -766,16 +848,28 @@ export default function Home() {
     setAttendancePage(data.pagination?.page || page);
   }
 
+  function applyAttendanceRange(range: AttendanceQuickRange) {
+    const dates = attendanceRangeDates(range);
+    setAttendanceRange(range);
+    setFrom(dates.from);
+    setTo(dates.to);
+    loadAttendance(1, { q: attQ, ...dates }).catch((error) => setMessage(error.message));
+  }
+
   async function loadDashboard() {
     if (!authHeaders) return;
-    const [usersData, attendanceData, leaveData] = await Promise.all([
+    const [usersData, attendanceData] = await Promise.all([
       apiJson("/api/users?role=intern&status=active"),
       apiJson("/api/attendance"),
-      apiJson("/api/leave-requests"),
     ]);
     setDashboardUsers(usersData.users || []);
     setDashboardRows(attendanceData.rows || []);
-    setDashboardLeaves(leaveData.rows || []);
+  }
+
+  async function loadInternTimeline() {
+    if (!authHeaders) return;
+    const data = await apiJson("/api/users?role=intern&status=active");
+    setDashboardUsers(data.users || []);
   }
 
   async function loadReportAttendance() {
@@ -980,7 +1074,7 @@ export default function Home() {
     setAccountLeaves(leaveData.rows || []);
   }
 
-  function openView(nextView: ViewKey) {
+  function openView(nextView: AdminViewKey) {
     setView(nextView);
     setSidebarOpen(false);
     setSidebarOpen(false);
@@ -1309,7 +1403,6 @@ export default function Home() {
     setEvidenceSiteVisits([]);
     setDashboardUsers([]);
     setDashboardRows([]);
-    setDashboardLeaves([]);
     setLeaveRequests([]);
     setSelectedCorrection(null);
     setSelectedUser(null);
@@ -1340,6 +1433,7 @@ export default function Home() {
   useEffect(() => {
     if (!me || !token) return;
     if (view === "dashboard" && me.role === "admin") loadDashboard().catch((error) => setMessage(error.message));
+    if (view === "internships" && me.role === "admin") loadInternTimeline().catch((error) => setMessage(error.message));
     if (view === "dashboard" && me.role === "intern") {
       loadAccountData().catch((error) => setMessage(error.message));
       loadToday().catch((error) => setMessage(error.message));
@@ -1452,8 +1546,8 @@ export default function Home() {
               <button className={view === "reports" ? "nav-button active" : "nav-button"} onClick={() => openView("reports")}>
                 <BarChart3 size={18} /> รายงาน
               </button>
-              <button className={view === "chatbot" ? "nav-button active" : "nav-button"} onClick={() => openView("chatbot")}>
-                <Settings size={18} /> ตั้งค่าแชทบอท
+              <button className={view === "internships" ? "nav-button active" : "nav-button"} onClick={() => openView("internships")}>
+                <Clock3 size={18} /> ช่วงฝึกงาน
               </button>
             </>
           )}
@@ -1483,10 +1577,13 @@ export default function Home() {
             <Menu size={20} /> เมนู
           </button>
           <div>
-            <h1>{view === "leave" ? (me.role === "admin" ? "อนุมัติคำขอลา" : "คำขอลา") : view === "dashboard" ? "Dashboard" : view === "checkin" ? "ลงเวลาฝึกงาน" : view === "users" ? "จัดการบัญชี" : view === "reports" ? "รายงานการฝึกงาน" : view === "chatbot" ? "ตั้งค่าแชทบอท" : view === "account" ? "โปรไฟล์ของฉัน" : "ตรวจสอบหลักฐานการลงเวลา"}</h1>
-            <p>{view === "leave" ? (me.role === "admin" ? "ตรวจสอบและอนุมัติคำขอลาของนักศึกษา" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${formatThaiDate(dashboardToday)}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "chatbot" ? "ควบคุม LINE แจ้งเตือน เวลาแจ้งเตือน และวันหยุดที่ต้องข้าม" : view === "account" ? "ตรวจข้อมูลโปรไฟล์และเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
+            <h1>{view === "leave" ? (me.role === "admin" ? "อนุมัติคำขอลา" : "คำขอลา") : view === "dashboard" ? "Dashboard" : view === "checkin" ? "ลงเวลาฝึกงาน" : view === "users" ? "จัดการบัญชี" : view === "reports" ? "รายงานการฝึกงาน" : view === "internships" ? "ช่วงฝึกงาน" : view === "chatbot" ? "ตั้งค่าแชทบอท" : view === "account" ? "โปรไฟล์ของฉัน" : "ตรวจสอบหลักฐานการลงเวลา"}</h1>
+            <p>{view === "leave" ? (me.role === "admin" ? "ตรวจสอบและอนุมัติคำขอลาของนักศึกษา" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${formatThaiDate(dashboardToday)}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "internships" ? "ตรวจวันเริ่ม วันสิ้นสุด และจำนวนวันที่เหลือของนักศึกษาฝึกงาน" : view === "chatbot" ? "ควบคุม LINE แจ้งเตือน เวลาแจ้งเตือน และวันหยุดที่ต้องข้าม" : view === "account" ? "ตรวจข้อมูลโปรไฟล์และเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
           </div>
           <div className="topbar-actions">
+            <button className="topbar-logout" type="button" onClick={logout} title="ออกจากระบบ">
+              <LogOut size={18} /> <span>ออกจากระบบ</span>
+            </button>
             <button className="topbar-profile" type="button" onClick={() => openView("account")} title="My profile">
               <span className="topbar-profile-avatar" aria-hidden="true">
                 {me.profile_image ? (
@@ -1672,14 +1769,18 @@ export default function Home() {
                 <div><dt>ชื่อ</dt><dd>{me.full_name || "-"}</dd></div>
                 <div><dt>อีเมล</dt><dd>{me.email || "-"}</dd></div>
                 <div><dt>บทบาท</dt><dd>{me.role === "admin" ? "Admin / HR" : "Intern"}</dd></div>
-                <div><dt>รหัส</dt><dd>{me.employee_code || me.intern_code || "-"}</dd></div>
-                <div><dt>แผนก</dt><dd>{me.department || "-"}</dd></div>
                 <div><dt>เบอร์โทร</dt><dd>{me.phone || "-"}</dd></div>
-                <div><dt>มหาวิทยาลัย</dt><dd>{me.university || "-"}</dd></div>
-                <div><dt>คณะ/สาขา</dt><dd>{[me.faculty, me.major].filter(Boolean).join(" / ") || "-"}</dd></div>
-                <div><dt>พี่เลี้ยง/อาจารย์</dt><dd>{me.mentor_name || "-"}</dd></div>
-                <div><dt>ตำแหน่งฝึกงาน</dt><dd>{me.position || "-"}</dd></div>
-                <div><dt>ช่วงฝึกงาน</dt><dd>{me.internship_start_date || "-"} - {me.internship_end_date || "-"}</dd></div>
+                {me.role === "intern" && (
+                  <>
+                    <div><dt>รหัส</dt><dd>{me.employee_code || me.intern_code || "-"}</dd></div>
+                    <div><dt>แผนก</dt><dd>{me.department || "-"}</dd></div>
+                    <div><dt>มหาวิทยาลัย</dt><dd>{me.university || "-"}</dd></div>
+                    <div><dt>คณะ/สาขา</dt><dd>{[me.faculty, me.major].filter(Boolean).join(" / ") || "-"}</dd></div>
+                    <div><dt>พี่เลี้ยง/อาจารย์</dt><dd>{me.mentor_name || "-"}</dd></div>
+                    <div><dt>ตำแหน่งฝึกงาน</dt><dd>{me.position || "-"}</dd></div>
+                    <div><dt>ช่วงฝึกงาน</dt><dd>{me.internship_start_date || "-"} - {me.internship_end_date || "-"}</dd></div>
+                  </>
+                )}
               </dl>
             </div>
 
@@ -1718,36 +1819,40 @@ export default function Home() {
                 เบอร์โทร
                 <input value={profileForm.phone} onChange={(e) => setProfileForm((form) => ({ ...form, phone: e.target.value }))} inputMode="tel" />
               </label>
-              <label>
-                มหาวิทยาลัย
-                <input value={profileForm.university} onChange={(e) => setProfileForm((form) => ({ ...form, university: e.target.value }))} />
-              </label>
-              <label>
-                คณะ
-                <input value={profileForm.faculty} onChange={(e) => setProfileForm((form) => ({ ...form, faculty: e.target.value }))} />
-              </label>
-              <label>
-                สาขา/วิชาเอก
-                <input value={profileForm.major} onChange={(e) => setProfileForm((form) => ({ ...form, major: e.target.value }))} />
-              </label>
-              <label>
-                ชื่อพี่เลี้ยง/อาจารย์ที่ปรึกษา
-                <input value={profileForm.mentor_name} onChange={(e) => setProfileForm((form) => ({ ...form, mentor_name: e.target.value }))} />
-              </label>
-              <label>
-                ตำแหน่งฝึกงาน
-                <input value={profileForm.position} onChange={(e) => setProfileForm((form) => ({ ...form, position: e.target.value }))} />
-              </label>
-              <div className="coordinate-grid">
-                <label>
-                  วันเริ่มฝึกงาน
-                  <input type="date" value={profileForm.internship_start_date} onChange={(e) => setProfileForm((form) => ({ ...form, internship_start_date: e.target.value }))} />
-                </label>
-                <label>
-                  วันสิ้นสุดฝึกงาน
-                  <input type="date" value={profileForm.internship_end_date} onChange={(e) => setProfileForm((form) => ({ ...form, internship_end_date: e.target.value }))} />
-                </label>
-              </div>
+              {me.role === "intern" && (
+                <>
+                  <label>
+                    มหาวิทยาลัย
+                    <input value={profileForm.university} onChange={(e) => setProfileForm((form) => ({ ...form, university: e.target.value }))} />
+                  </label>
+                  <label>
+                    คณะ
+                    <input value={profileForm.faculty} onChange={(e) => setProfileForm((form) => ({ ...form, faculty: e.target.value }))} />
+                  </label>
+                  <label>
+                    สาขา/วิชาเอก
+                    <input value={profileForm.major} onChange={(e) => setProfileForm((form) => ({ ...form, major: e.target.value }))} />
+                  </label>
+                  <label>
+                    ชื่อพี่เลี้ยง/อาจารย์ที่ปรึกษา
+                    <input value={profileForm.mentor_name} onChange={(e) => setProfileForm((form) => ({ ...form, mentor_name: e.target.value }))} />
+                  </label>
+                  <label>
+                    ตำแหน่งฝึกงาน
+                    <input value={profileForm.position} onChange={(e) => setProfileForm((form) => ({ ...form, position: e.target.value }))} />
+                  </label>
+                  <div className="coordinate-grid">
+                    <label>
+                      วันเริ่มฝึกงาน
+                      <input type="date" value={profileForm.internship_start_date} onChange={(e) => setProfileForm((form) => ({ ...form, internship_start_date: e.target.value }))} />
+                    </label>
+                    <label>
+                      วันสิ้นสุดฝึกงาน
+                      <input type="date" value={profileForm.internship_end_date} onChange={(e) => setProfileForm((form) => ({ ...form, internship_end_date: e.target.value }))} />
+                    </label>
+                  </div>
+                </>
+              )}
               <button disabled={profileSaving}>
                 <UserRound size={18} /> {profileSaving ? "กำลังบันทึก..." : "บันทึกโปรไฟล์"}
               </button>
@@ -1860,6 +1965,10 @@ export default function Home() {
           />
         )}
 
+        {view === "internships" && me.role === "admin" && (
+          <InternTimelinePanel rows={internTimeline} summary={internTimelineSummary} />
+        )}
+
         {view === "leave" && (
           <LeaveRequestsPanel
             rows={leaveRequests}
@@ -1886,9 +1995,23 @@ export default function Home() {
         {view === "attendance" && (
           <>
             <section className="filter-panel attendance-filter">
+              <div className="attendance-range-tabs" role="tablist" aria-label="ช่วงวันที่หลักฐานการลงเวลา">
+                {attendanceRangeTabs.map((tab) => (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={attendanceRange === tab.value}
+                    className={attendanceRange === tab.value ? "attendance-range-tab active" : "attendance-range-tab"}
+                    onClick={() => applyAttendanceRange(tab.value)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
               <label><Search size={16} /> ค้นหา<input value={attQ} onChange={(e) => setAttQ(e.target.value)} placeholder="ชื่อ / รหัส / สถานที่" /></label>
-              <label>ตั้งแต่<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-              <label>ถึง<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+              <label>ตั้งแต่<input type="date" value={from} onChange={(e) => { setAttendanceRange("custom"); setFrom(e.target.value); }} /></label>
+              <label>ถึง<input type="date" value={to} onChange={(e) => { setAttendanceRange("custom"); setTo(e.target.value); }} /></label>
               <button onClick={() => loadAttendance(1)}><Search size={18} /> กรอง</button>
             </section>
             <AttendanceTable
@@ -2434,22 +2557,9 @@ function DashboardPanel({
     interns: User[];
     todayRows: Attendance[];
     absent: User[];
-    progress: Array<{
-      user: User;
-      totalHours: number;
-      requiredHours: number;
-      percent: number;
-      attendedDays: number;
-      approvedLeaveDays: number;
-      absentDays: number;
-      plannedDays: number;
-      remainingDays: number;
-      daysToEnd: number | null;
-    }>;
     recentRows: Attendance[];
     checkedOut: number;
     late: number;
-    todayHours: number;
   };
   today: string;
   onOpenAttendance: () => void;
@@ -2509,7 +2619,6 @@ function DashboardPanel({
         <div><span>ยังไม่เช็คอิน</span><strong>{data.absent.length}</strong></div>
         <div><span>เช็คเอาท์แล้ว</span><strong>{data.checkedOut}</strong></div>
         <div><span>เช็คอินล่าช้า</span><strong>{data.late}</strong></div>
-        <div><span>ชั่วโมงวันนี้</span><strong>{formatHoursValue(data.todayHours)}</strong></div>
       </section>
 
       <section className="dashboard-panel student-location-panel">
@@ -2523,7 +2632,7 @@ function DashboardPanel({
         <StudentLocationMap locations={locationRows} />
       </section>
 
-      <section className="dashboard-grid">
+      <section className="dashboard-grid dashboard-grid-single">
         <div className="dashboard-panel">
           <div className="panel-heading">
             <h3>ยังไม่เช็คอิน</h3>
@@ -2543,32 +2652,6 @@ function DashboardPanel({
                 <span>ไม่มีนักศึกษาที่รอเช็คอินในวันนี้</span>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="dashboard-panel">
-          <div className="panel-heading">
-            <h3>ชั่วโมงสะสม</h3>
-            <span>Top {data.progress.length}</span>
-          </div>
-          <div className="progress-list">
-            {data.progress.map((item) => (
-              <div key={item.user.id} className="progress-row">
-                <div>
-                  <strong>{item.user.full_name}</strong>
-                  <span>{formatHoursValue(item.totalHours)}{item.requiredHours ? ` / ${item.requiredHours} ชม.` : ""}</span>
-                </div>
-                <div className="progress-track"><span style={{ width: `${item.percent}%` }} /></div>
-                <div className="progress-mini-metrics">
-                  <span>เข้า {item.attendedDays}</span>
-                  <span>ลา {item.approvedLeaveDays}</span>
-                  <span>ขาด {item.absentDays}</span>
-                  <span>คงเหลือ {item.remainingDays} วันฝึกงาน</span>
-                  {item.daysToEnd !== null && item.daysToEnd <= 14 && <span className="ending-soon">ใกล้จบ {Math.max(0, item.daysToEnd)} วัน</span>}
-                </div>
-              </div>
-            ))}
-            {data.progress.length === 0 && <div className="mini-empty">ยังไม่มีข้อมูลชั่วโมงสะสม</div>}
           </div>
         </div>
       </section>
@@ -2609,6 +2692,70 @@ function DashboardPanel({
           </tbody>
         </table>
         {data.recentRows.length === 0 && <div className="empty">ยังไม่มีรายการลงเวลาล่าสุด</div>}
+      </section>
+    </>
+  );
+}
+
+function InternTimelinePanel({
+  rows,
+  summary,
+}: {
+  rows: InternTimelineRow[];
+  summary: {
+    active: number;
+    endingSoon: number;
+  };
+}) {
+  return (
+    <>
+      <section className="timeline-summary-grid">
+        <div>
+          <span>กำลังฝึก</span>
+          <strong>{summary.active}</strong>
+        </div>
+        <div>
+          <span>ใกล้จบ</span>
+          <strong>{summary.endingSoon}</strong>
+        </div>
+      </section>
+
+      <section className="table-card internship-table-card">
+        <div className="table-section-header internship-table-header">
+          <div>
+            <h3>ภาพรวมช่วงฝึกงาน</h3>
+          </div>
+          <span>{rows.length} คน</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>นักศึกษา</th>
+              <th>รหัส</th>
+              <th>แผนก</th>
+              <th>วันเริ่มฝึกงาน</th>
+              <th>วันสิ้นสุดฝึกงาน</th>
+              <th>เวลาฝึกงานทั้งหมด</th>
+              <th>เหลืออีกกี่วัน</th>
+              <th>สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.user.id} className={`timeline-row status-${row.status}`}>
+                <td className="timeline-student-cell"><strong>{row.user.full_name}</strong><small>{row.user.university || "-"}</small></td>
+                <td>{row.user.employee_code || row.user.intern_code || "-"}</td>
+                <td>{row.user.department || "-"}</td>
+                <td>{row.startDate ? formatThaiDate(row.startDate) : "-"}</td>
+                <td>{row.endDate ? formatThaiDate(row.endDate) : "-"}</td>
+                <td className="timeline-days-cell timeline-total-days">{remainingDaysText(row.totalDays)}</td>
+                <td className="timeline-days-cell timeline-remaining-days">{remainingDaysText(row.calendarDaysRemaining)}</td>
+                <td><span className={internTimelineStatusClass(row.status)}>{internTimelineStatusText(row.status)}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length === 0 && <div className="empty">ยังไม่มีข้อมูลนักศึกษาฝึกงาน</div>}
       </section>
     </>
   );

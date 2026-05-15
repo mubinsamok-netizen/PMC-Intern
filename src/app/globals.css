@@ -760,12 +760,16 @@ textarea {
 }
 
 .sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
   background: #fff;
   border-right: 1px solid var(--line);
   padding: 24px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow: hidden;
 }
 
 .sidebar-close,
@@ -815,6 +819,10 @@ textarea {
   display: grid;
   gap: 8px;
   margin-top: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .sidebar-logout {
@@ -881,6 +889,22 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.topbar-logout {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--brand);
+  border: 1px solid #f7c5bd;
+  box-shadow: 0 12px 26px rgba(201, 36, 29, 0.08);
+}
+
+.topbar-logout:hover {
+  background: #fff1ef;
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(201, 36, 29, 0.14);
 }
 
 .topbar-profile {
@@ -1075,10 +1099,6 @@ textarea {
   box-shadow: 0 16px 38px rgba(15, 23, 42, 0.06);
 }
 
-.attendance-filter {
-  grid-template-columns: minmax(220px, 1fr) 180px 180px auto;
-}
-
 .filter-panel.report-filter {
   grid-template-columns: minmax(240px, 1fr) minmax(150px, 180px) minmax(150px, 180px) minmax(150px, 190px) auto auto auto;
 }
@@ -1257,6 +1277,10 @@ textarea {
   grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.15fr);
   gap: 14px;
   align-items: start;
+}
+
+.dashboard-grid-single {
+  grid-template-columns: 1fr;
 }
 
 .intern-dashboard-grid {
@@ -1828,6 +1852,153 @@ textarea {
   background: #fef2f2;
 }
 
+.timeline-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.timeline-summary-grid div {
+  min-height: 108px;
+  padding: 18px 20px;
+  display: grid;
+  align-content: space-between;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.06);
+}
+
+.timeline-summary-grid div:nth-child(1) {
+  border-color: #bbf7d0;
+}
+
+.timeline-summary-grid div:nth-child(2) {
+  border-color: #fed7aa;
+  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+}
+
+.timeline-summary-grid span {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.timeline-summary-grid strong {
+  color: var(--ink);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.internship-table-card {
+  display: grid;
+  overflow: hidden;
+}
+
+.internship-table-header {
+  padding: 20px 22px 16px;
+  align-items: center;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-bottom: 1px solid var(--line);
+}
+
+.internship-table-header h3 {
+  line-height: 1.2;
+}
+
+.internship-table-card table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.internship-table-card th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.internship-table-card th,
+.internship-table-card td {
+  padding: 15px 16px;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.internship-table-card th:nth-child(1),
+.internship-table-card td:nth-child(1) {
+  width: 23%;
+}
+
+.internship-table-card th:nth-child(2),
+.internship-table-card td:nth-child(2) {
+  width: 7%;
+}
+
+.internship-table-card th:nth-child(3),
+.internship-table-card td:nth-child(3) {
+  width: 10%;
+}
+
+.internship-table-card th:nth-child(4),
+.internship-table-card td:nth-child(4),
+.internship-table-card th:nth-child(5),
+.internship-table-card td:nth-child(5) {
+  width: 13%;
+}
+
+.internship-table-card th:nth-child(6),
+.internship-table-card td:nth-child(6),
+.internship-table-card th:nth-child(7),
+.internship-table-card td:nth-child(7) {
+  width: 11%;
+}
+
+.internship-table-card th:nth-child(8),
+.internship-table-card td:nth-child(8) {
+  width: 12%;
+}
+
+.timeline-row {
+  transition: background 160ms ease;
+}
+
+.timeline-row:hover {
+  background: #f8fafc;
+}
+
+.timeline-row:last-child td {
+  border-bottom: 0;
+}
+
+.timeline-student-cell strong {
+  display: block;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.timeline-student-cell small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.timeline-days-cell {
+  color: var(--ink);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.internship-table-card .chip {
+  white-space: nowrap;
+}
+
+.timeline-row.status-ending_soon .timeline-remaining-days {
+  color: #c2410c;
+}
+
 .table-section-header {
   min-height: 54px;
   padding: 0 2px;
@@ -2093,6 +2264,24 @@ td small {
   background: #fff7ed;
   color: #c2410c;
   border-color: #fed7aa;
+}
+
+.chip.info {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.chip.neutral {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.chip.muted {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
 }
 
 .row-actions {
@@ -2589,6 +2778,44 @@ td small {
   align-items: end;
 }
 
+.filter-panel.attendance-filter {
+  grid-template-columns: minmax(220px, 1fr) 180px 180px auto;
+}
+
+.attendance-range-tabs {
+  grid-column: 1 / -1;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+}
+
+.attendance-range-tab {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  font-weight: 900;
+}
+
+.attendance-range-tab:hover {
+  color: var(--brand);
+  background: #fff;
+}
+
+.attendance-range-tab.active {
+  color: #fff;
+  background: var(--brand);
+  box-shadow: 0 10px 22px rgba(201, 36, 29, 0.2);
+}
+
 .filter-panel label {
   font-size: 14px;
 }
@@ -2652,7 +2879,7 @@ th {
   .sidebar nav {
     display: grid;
     margin-top: 12px;
-    flex: initial;
+    flex: 1 1 auto;
   }
 
   .sidebar-logout {
@@ -2781,6 +3008,17 @@ th {
     max-width: 220px;
     padding: 6px 12px 6px 6px;
     border-radius: 15px;
+  }
+
+  .topbar-logout {
+    min-height: 48px;
+    width: 48px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .topbar-logout span {
+    display: none;
   }
 
   .topbar-profile-avatar {
