@@ -554,6 +554,14 @@ function profileInitials(name?: string) {
   return String(name || "?").trim().slice(0, 2).toUpperCase();
 }
 
+function safeImageSrc(src?: string) {
+  const value = String(src || "").trim();
+  if (!value) return "";
+  if (value.startsWith("data:image/")) return value;
+  if (value.startsWith("/")) return value;
+  return "";
+}
+
 export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -582,6 +590,7 @@ export default function Home() {
   const [correctionForm, setCorrectionForm] = useState<CorrectionForm>(emptyCorrectionForm);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userForm, setUserForm] = useState<UserForm>(emptyUserForm);
+  const [profileImageFailed, setProfileImageFailed] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
@@ -705,7 +714,7 @@ export default function Home() {
       interns,
       todayRows,
       absent,
-      recentRows: dashboardRows.slice(0, 8),
+      recentRows: todayRows.slice(0, 8),
       checkedOut: todayRows.filter((row) => row.status === "checked_out").length,
       late: todayRows.filter((row) => row.is_late).length,
     };
@@ -746,7 +755,7 @@ export default function Home() {
   }, [dashboardToday, dashboardUsers]);
 
   const internTimelineSummary = useMemo(() => ({
-    active: internTimeline.filter((row) => row.status === "active").length,
+    active: internTimeline.filter((row) => row.status === "active" || row.status === "ending_soon").length,
     endingSoon: internTimeline.filter((row) => row.status === "ending_soon").length,
   }), [internTimeline]);
 
@@ -1076,8 +1085,7 @@ export default function Home() {
 
   function openView(nextView: AdminViewKey) {
     setView(nextView);
-    setSidebarOpen(false);
-    setSidebarOpen(false);
+    if (window.matchMedia("(max-width: 900px)").matches) setSidebarOpen(false);
   }
 
   async function openEvidence(row: Attendance) {
@@ -1463,6 +1471,7 @@ export default function Home() {
       internship_end_date: form.internship_end_date || me.internship_end_date || "",
       profileImageBase64: "",
     }));
+    setProfileImageFailed(false);
   }, [me]);
 
   useEffect(() => {
@@ -1473,6 +1482,18 @@ export default function Home() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 901px)");
+    setSidebarOpen(desktopQuery.matches);
+
+    const syncSidebarForViewport = (event: MediaQueryListEvent) => {
+      setSidebarOpen(event.matches);
+    };
+
+    desktopQuery.addEventListener("change", syncSidebarForViewport);
+    return () => desktopQuery.removeEventListener("change", syncSidebarForViewport);
+  }, []);
 
   if (!me) {
     return (
@@ -1510,16 +1531,19 @@ export default function Home() {
     );
   }
 
+  const profileImageSrc = profileImageFailed ? "" : safeImageSrc(me.profile_image);
+  const editorProfileImageSrc = profileForm.profileImageBase64 || profileImageSrc;
+
   return (
     <main className={sidebarOpen ? "app-shell sidebar-open" : "app-shell"}>
       <aside id="app-sidebar" className="sidebar" aria-label="เมนูหลัก">
         <div className="sidebar-brand">
           <img src="/login-logo.png" alt="บริษัทพิชยมงคล คอนสตรัคชั่น จำกัด" />
-          <strong>Intern Attendance System</strong>
+          <strong><span>Intern Attendance System</span></strong>
         </div>
         <span className="role-badge">{me.role === "admin" ? "ADMIN / HR" : "INTERN"}</span>
         <button className="sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="ปิดเมนู" title="ปิดเมนู">
-          <X size={18} /> ปิด
+          <X size={18} aria-hidden="true" />
         </button>
         <nav>
           <button className={view === "dashboard" ? "nav-button active" : "nav-button"} onClick={() => openView("dashboard")}>
@@ -1581,13 +1605,17 @@ export default function Home() {
             <p>{view === "leave" ? (me.role === "admin" ? "ตรวจสอบและอนุมัติคำขอลาของนักศึกษา" : "ส่งคำขอลาและติดตามผลอนุมัติจาก admin") : view === "dashboard" ? `ภาพรวมการฝึกงานประจำวันที่ ${formatThaiDate(dashboardToday)}` : view === "checkin" ? "บันทึกเวลา พิกัด และหลักฐานการฝึกงานประจำวัน" : view === "users" ? "เพิ่ม ลด ค้นหา และกรองบัญชีผู้ใช้งานในระบบฝึกงาน" : view === "reports" ? "สรุปชั่วโมง สถานะการลงเวลา และส่งออกข้อมูลสำหรับ HR" : view === "internships" ? "ตรวจวันเริ่ม วันสิ้นสุด และจำนวนวันที่เหลือของนักศึกษาฝึกงาน" : view === "chatbot" ? "ควบคุม LINE แจ้งเตือน เวลาแจ้งเตือน และวันหยุดที่ต้องข้าม" : view === "account" ? "ตรวจข้อมูลโปรไฟล์และเปลี่ยนรหัสผ่านสำหรับการเข้าสู่ระบบ" : "ตรวจสอบเวลาเข้าออก สถานที่ และรูปหลักฐานของนักศึกษา"}</p>
           </div>
           <div className="topbar-actions">
-            <button className="topbar-logout" type="button" onClick={logout} title="ออกจากระบบ">
-              <LogOut size={18} /> <span>ออกจากระบบ</span>
-            </button>
             <button className="topbar-profile" type="button" onClick={() => openView("account")} title="My profile">
               <span className="topbar-profile-avatar" aria-hidden="true">
-                {me.profile_image ? (
-                  <img src={me.profile_image} alt="" />
+                {profileImageSrc ? (
+                  <img
+                    src={profileImageSrc}
+                    alt=""
+                    onError={(event) => {
+                      event.currentTarget.removeAttribute("src");
+                      setProfileImageFailed(true);
+                    }}
+                  />
                 ) : (
                   <span>{profileInitials(me.full_name)}</span>
                 )}
@@ -1794,8 +1822,15 @@ export default function Home() {
               </div>
               <div className="profile-editor">
                 <div className="profile-avatar">
-                  {profileForm.profileImageBase64 || me.profile_image ? (
-                    <img src={profileForm.profileImageBase64 || me.profile_image} alt="รูปโปรไฟล์" />
+                  {editorProfileImageSrc ? (
+                    <img
+                      src={editorProfileImageSrc}
+                      alt="รูปโปรไฟล์"
+                      onError={(event) => {
+                        event.currentTarget.removeAttribute("src");
+                        setProfileImageFailed(true);
+                      }}
+                    />
                   ) : (
                     <span>{profileInitials(me.full_name)}</span>
                   )}
@@ -2691,7 +2726,7 @@ function DashboardPanel({
             ))}
           </tbody>
         </table>
-        {data.recentRows.length === 0 && <div className="empty">ยังไม่มีรายการลงเวลาล่าสุด</div>}
+        {data.recentRows.length === 0 && <div className="empty">ยังไม่มีรายการเช็คอินวันนี้</div>}
       </section>
     </>
   );
@@ -2711,7 +2746,7 @@ function InternTimelinePanel({
     <>
       <section className="timeline-summary-grid">
         <div>
-          <span>กำลังฝึก</span>
+          <span>นักศึกษากำลังฝึกทั้งหมด</span>
           <strong>{summary.active}</strong>
         </div>
         <div>
@@ -2722,10 +2757,10 @@ function InternTimelinePanel({
 
       <section className="table-card internship-table-card">
         <div className="table-section-header internship-table-header">
-          <div>
+          <div className="internship-header-title">
             <h3>ภาพรวมช่วงฝึกงาน</h3>
           </div>
-          <span>{rows.length} คน</span>
+          <span className="internship-count-pill"><strong>{rows.length}</strong> คน</span>
         </div>
         <table>
           <thead>
@@ -2933,7 +2968,6 @@ function ReportsPanel({
         <div><span>นักศึกษา</span><strong>{summary.interns}</strong></div>
         <div><span>เช็คเอาท์แล้ว</span><strong>{summary.checkedOut}</strong></div>
         <div><span>เช็คอินล่าช้า</span><strong>{summary.late}</strong></div>
-        <div><span>ชั่วโมงรวม</span><strong>{formatHoursValue(summary.totalHours)}</strong></div>
       </section>
 
       <section className="table-card">
