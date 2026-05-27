@@ -181,9 +181,6 @@ function makeLineCard(options: {
 }): LineMessage {
   const accent = options.accentColor || colors.brand;
   const heroImageUrl = options.heroImageUrl || heroImages.default;
-  const iconSize = options.compactHeader ? "34px" : "40px";
-  const iconRadius = options.compactHeader ? "17px" : "20px";
-  const iconTextSize = options.compactHeader ? "lg" : "xl";
 
   const detailContents: FlexComponent[] = [
     ...options.rows,
@@ -234,13 +231,12 @@ function makeLineCard(options: {
           contents: [
             {
               type: "box",
-              layout: "horizontal",
-              alignItems: "center",
+              layout: "vertical",
+              alignItems: "flex-start",
               contents: [
                 {
                   type: "box",
                   layout: "vertical",
-                  flex: 1,
                   spacing: "xs",
                   contents: [
                     flexText(options.title, {
@@ -264,26 +260,6 @@ function makeLineCard(options: {
                       margin: "xs",
                       adjustMode: "shrink-to-fit",
                       maxLines: 1,
-                    }),
-                  ],
-                },
-                {
-                  type: "box",
-                  layout: "vertical",
-                  flex: 0,
-                  width: iconSize,
-                  height: iconSize,
-                  margin: "md",
-                  backgroundColor: "#F8FAFC",
-                  cornerRadius: iconRadius,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  contents: [
-                    flexText(options.emoji, {
-                      size: iconTextSize,
-                      weight: "bold",
-                      align: "center",
-                      color: accent,
                     }),
                   ],
                 },
