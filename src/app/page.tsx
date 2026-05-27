@@ -3059,6 +3059,7 @@ function LeaveRequestsPanel({
                 <option value="ลากิจ">ลากิจ</option>
                 <option value="ลาป่วย">ลาป่วย</option>
                 <option value="ลาพักร้อน">ลาพักร้อน</option>
+                <option value="วันหยุดชดเชย">วันหยุดชดเชย</option>
                 <option value="อื่น ๆ">อื่น ๆ</option>
               </select>
             </label>

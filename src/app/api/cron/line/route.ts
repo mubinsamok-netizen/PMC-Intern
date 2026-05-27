@@ -18,10 +18,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const action = req.nextUrl.searchParams.get("action") || "disabled";
+    const action = req.nextUrl.searchParams.get("action") || "check-out-reminder";
     const date = req.nextUrl.searchParams.get("date") || undefined;
     const force = req.nextUrl.searchParams.get("force") === "true";
-    const result = await runLineAutomation(action, date, { force });
+    const targetGroupId = req.nextUrl.searchParams.get("targetGroupId") || undefined;
+    const result = await runLineAutomation(action, date, { force, targetGroupId });
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 400 });
@@ -38,7 +39,10 @@ export async function POST(req: NextRequest) {
     const result = await runLineAutomation(
       String(body.action || "disabled"),
       body.date ? String(body.date) : undefined,
-      { force: body.force === true || body.force === "true" },
+      {
+        force: body.force === true || body.force === "true",
+        targetGroupId: body.targetGroupId ? String(body.targetGroupId) : undefined,
+      },
     );
     return NextResponse.json(result);
   } catch (error) {

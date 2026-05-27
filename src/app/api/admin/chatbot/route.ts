@@ -79,13 +79,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "all");
     const date = body.date ? String(body.date) : undefined;
-    const result = await runLineAutomation(action, date, { force: true });
+    const targetGroupId = body.targetGroupId ? String(body.targetGroupId) : undefined;
+    const result = await runLineAutomation(action, date, { force: true, targetGroupId });
     writeAuditLogSafe({
       user: admin,
       action: "TEST_LINE_CHATBOT",
       targetType: "chatbot",
       targetId: action,
-      details: { date: date || "", result },
+      details: { date: date || "", targetGroupId: targetGroupId || "", result },
       userAgent: req.headers.get("user-agent") || "",
     });
     return NextResponse.json({ ok: true, result });

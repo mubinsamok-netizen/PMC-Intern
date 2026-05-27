@@ -37,5 +37,10 @@ export const env = {
     enabled: readEnv("LINE_ENABLED", "false") === "true",
     channelAccessToken: readEnv("LINE_CHANNEL_ACCESS_TOKEN", ""),
     groupId: readEnv("LINE_GROUP_ID", ""),
+    cardHeroImageUrl: readEnv("LINE_CARD_HERO_IMAGE_URL", ""),
+    checkinHeroImageUrl: readEnv("LINE_CHECKIN_HERO_IMAGE_URL", ""),
+    siteHeroImageUrl: readEnv("LINE_SITE_HERO_IMAGE_URL", ""),
+    leaveHeroImageUrl: readEnv("LINE_LEAVE_HERO_IMAGE_URL", ""),
+    checkoutHeroImageUrl: readEnv("LINE_CHECKOUT_HERO_IMAGE_URL", ""),
   },
 };

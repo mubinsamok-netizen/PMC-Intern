@@ -110,8 +110,8 @@ export async function updateChatbotSettings(input: Partial<Record<SettingKey, un
 }
 
 export function isChatbotActionEnabled(action: string, settings: ChatbotSettings) {
-  if (action === "check-in-reminder") return false;
-  if (action === "check-out-reminder") return false;
-  if (action === "summary") return false;
+  if (action === "check-in-reminder") return settings.check_in_enabled;
+  if (action === "check-out-reminder") return settings.check_out_enabled;
+  if (action === "summary") return settings.summary_enabled;
   return true;
 }

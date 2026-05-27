@@ -36,6 +36,14 @@ type LineSiteVisitPayload = {
   location_address?: string;
 };
 
+type LineCheckoutReminderPayload = {
+  date: string;
+  reminderTime?: string;
+  totalCheckedIn: number;
+  pendingCount: number;
+  pendingNames: string[];
+};
+
 type FlexComponent = Record<string, unknown>;
 type FlexContainer = Record<string, unknown>;
 
@@ -43,22 +51,44 @@ type LineMessage =
   | { type: "text"; text: string }
   | { type: "flex"; altText: string; contents: FlexContainer };
 
+type LinePushOptions = {
+  force?: boolean;
+  targetGroupId?: string;
+};
+
 const colors = {
   brand: "#E84924",
-  brandSoft: "#FFF7F3",
   ink: "#1F2937",
   muted: "#667085",
   line: "#E8D5CD",
   warning: "#F59B2E",
   surface: "#FFFFFF",
-  headerText: "#FFFFFF",
-  headerMuted: "#FFE7DD",
+  success: "#0E9F6E",
+  sky: "#2F80ED",
+  danger: "#DC2626",
+  purple: "#7C3AED",
 };
 
-async function pushLine(message: LineMessage) {
-  if (!env.line.enabled || !env.line.channelAccessToken || !env.line.groupId) return { skipped: true };
+const heroImages = {
+  default: env.line.cardHeroImageUrl || `${env.publicAppUrl}/line-checkout-bg.jpg`,
+  checkin: env.line.checkinHeroImageUrl || env.line.cardHeroImageUrl || `${env.publicAppUrl}/line-checkin-bg.jpg`,
+  site: env.line.siteHeroImageUrl || env.line.cardHeroImageUrl || `${env.publicAppUrl}/line-site-bg.jpg`,
+  leave: env.line.leaveHeroImageUrl || env.line.cardHeroImageUrl || `${env.publicAppUrl}/line-leave-bg.jpg`,
+  checkout: env.line.checkoutHeroImageUrl || env.line.cardHeroImageUrl || `${env.publicAppUrl}/line-checkout-bg.jpg`,
+};
 
-  const messages: LineMessage[] = [message];
+async function pushLine(message: LineMessage, options: LinePushOptions = {}) {
+  const targetGroupId = options.targetGroupId || env.line.groupId;
+  if ((!env.line.enabled && !options.force) || !env.line.channelAccessToken || !targetGroupId) {
+    return {
+      skipped: true,
+      reason: !env.line.enabled && !options.force
+        ? "LINE is disabled"
+        : !env.line.channelAccessToken
+          ? "Missing LINE channel access token"
+          : "Missing LINE group id",
+    };
+  }
 
   const res = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
@@ -67,8 +97,8 @@ async function pushLine(message: LineMessage) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      to: env.line.groupId,
-      messages,
+      to: targetGroupId,
+      messages: [message],
     }),
   });
 
@@ -88,6 +118,12 @@ function formatThaiDate(value?: string) {
     year: "numeric",
     timeZone: env.timezone,
   }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function dateRangeText(startDate?: string, endDate?: string) {
+  if (!startDate && !endDate) return "-";
+  if (startDate && endDate && startDate !== endDate) return `${formatThaiDate(startDate)} - ${formatThaiDate(endDate)}`;
+  return formatThaiDate(startDate || endDate || "");
 }
 
 function flexText(text: string, options: Record<string, unknown> = {}): FlexComponent {
@@ -131,7 +167,7 @@ function infoRow(label: string, value: string, strong = false): FlexComponent {
   };
 }
 
-function makeCuteCard(options: {
+function makeLineCard(options: {
   altText: string;
   title: string;
   subtitle: string;
@@ -141,162 +177,200 @@ function makeCuteCard(options: {
   note?: string;
   accentColor?: string;
   compactHeader?: boolean;
+  heroImageUrl?: string;
 }): LineMessage {
   const accent = options.accentColor || colors.brand;
-  const headerTexts: FlexComponent[] = [];
-  if (options.title) {
-    headerTexts.push(flexText(options.title, {
-      size: "xs",
-      weight: "bold",
-      color: colors.headerMuted,
-      adjustMode: "shrink-to-fit",
-      maxLines: 1,
-    }));
-  }
-  if (options.bigValue) {
-    headerTexts.push(flexText(options.bigValue, {
-      size: options.compactHeader ? "md" : "xl",
-      weight: "bold",
-      color: colors.headerText,
-      margin: options.title ? "sm" : undefined,
-      maxLines: 2,
-      adjustMode: options.compactHeader ? "shrink-to-fit" : undefined,
-    }));
-  }
-  if (options.subtitle) {
-    headerTexts.push(flexText(options.subtitle, {
-      size: "xs",
-      color: colors.headerMuted,
-      margin: "xs",
-      adjustMode: "shrink-to-fit",
-      maxLines: 1,
-    }));
-  }
+  const heroImageUrl = options.heroImageUrl || heroImages.default;
   const iconSize = options.compactHeader ? "34px" : "40px";
   const iconRadius = options.compactHeader ? "17px" : "20px";
   const iconTextSize = options.compactHeader ? "lg" : "xl";
-  const headerContents: FlexComponent[] = [
+
+  const detailContents: FlexComponent[] = [
+    ...options.rows,
     {
-      type: "box",
-      layout: "vertical",
-      flex: 1,
-      spacing: "xs",
-      contents: headerTexts,
-    },
-    {
-      type: "box",
-      layout: "vertical",
-      flex: 0,
-      width: iconSize,
-      height: iconSize,
+      type: "separator",
       margin: "md",
-      backgroundColor: colors.surface,
-      cornerRadius: iconRadius,
-      alignItems: "center",
-      justifyContent: "center",
-      contents: [
-        flexText(options.emoji, {
-          size: iconTextSize,
-          weight: "bold",
-          align: "center",
-          color: accent,
-        }),
-      ],
-    },
-  ];
-  const bodyContents: FlexComponent[] = [
-    {
-      type: "box",
-      layout: "vertical",
-      spacing: "sm",
-      paddingTop: "18px",
-      paddingBottom: "16px",
-      paddingStart: "18px",
-      paddingEnd: "18px",
-      contents: [
-        {
-          type: "box",
-          layout: "horizontal",
-          alignItems: "center",
-          contents: headerContents,
-        },
-      ],
-    },
-    {
-      type: "box",
-      layout: "vertical",
-      paddingTop: "16px",
-      paddingBottom: "16px",
-      paddingStart: "18px",
-      paddingEnd: "18px",
-      spacing: "md",
-      backgroundColor: colors.surface,
-      contents: [
-        ...options.rows,
-        {
-          type: "separator",
-          margin: "md",
-          color: colors.line,
-        },
-      ],
+      color: colors.line,
     },
   ];
 
   if (options.note) {
-    bodyContents[1].contents = [
-      ...(bodyContents[1].contents as FlexComponent[]),
-      flexText(options.note, {
-        size: "sm",
-        color: colors.muted,
-        align: "center",
-        margin: "sm",
-      }),
-    ];
+    detailContents.push(flexText(options.note, {
+      size: "sm",
+      color: colors.muted,
+      align: "center",
+      margin: "sm",
+    }));
   }
+
+  const contents: FlexContainer = {
+    type: "bubble",
+    size: "giga",
+    styles: {
+      hero: { separator: false },
+      body: { backgroundColor: colors.surface },
+    },
+    hero: {
+      type: "image",
+      url: heroImageUrl,
+      size: "full",
+      aspectRatio: "20:7",
+      aspectMode: "cover",
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "0px",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          paddingTop: "18px",
+          paddingBottom: "16px",
+          paddingStart: "18px",
+          paddingEnd: "18px",
+          backgroundColor: colors.surface,
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              alignItems: "center",
+              contents: [
+                {
+                  type: "box",
+                  layout: "vertical",
+                  flex: 1,
+                  spacing: "xs",
+                  contents: [
+                    flexText(options.title, {
+                      size: "xs",
+                      weight: "bold",
+                      color: accent,
+                      adjustMode: "shrink-to-fit",
+                      maxLines: 1,
+                    }),
+                    flexText(options.bigValue, {
+                      size: options.compactHeader ? "md" : "xl",
+                      weight: "bold",
+                      color: colors.ink,
+                      margin: "sm",
+                      maxLines: 2,
+                      adjustMode: options.compactHeader ? "shrink-to-fit" : undefined,
+                    }),
+                    flexText(options.subtitle, {
+                      size: "xs",
+                      color: colors.muted,
+                      margin: "xs",
+                      adjustMode: "shrink-to-fit",
+                      maxLines: 1,
+                    }),
+                  ],
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  flex: 0,
+                  width: iconSize,
+                  height: iconSize,
+                  margin: "md",
+                  backgroundColor: "#F8FAFC",
+                  cornerRadius: iconRadius,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  contents: [
+                    flexText(options.emoji, {
+                      size: iconTextSize,
+                      weight: "bold",
+                      align: "center",
+                      color: accent,
+                    }),
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          paddingTop: "16px",
+          paddingBottom: "16px",
+          paddingStart: "18px",
+          paddingEnd: "18px",
+          spacing: "md",
+          backgroundColor: colors.surface,
+          contents: detailContents,
+        },
+      ],
+    },
+  };
 
   return {
     type: "flex",
     altText: options.altText,
-    contents: {
-      type: "bubble",
-      size: "giga",
-      styles: {
-        body: { backgroundColor: accent },
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "0px",
-        contents: bodyContents,
-      },
-    },
+    contents,
   };
 }
 
-export async function notifyLineCheckIn(record: LineAttendancePayload) {
-  return pushLine(makeCuteCard({
+export async function notifyLineCheckOutReminder(
+  record: LineCheckoutReminderPayload,
+  options: LinePushOptions = {},
+) {
+  const hasPending = record.pendingCount > 0;
+
+  return pushLine(makeLineCard({
+    altText: "อย่าลืม Check out ก่อนกลับนะครับ",
+    title: "CHECK OUT REMINDER",
+    bigValue: hasPending ? "อย่าลืม Check out นะครับ" : "วันนี้เรียบร้อยครบแล้ว",
+    subtitle: hasPending ? "ขอบคุณสำหรับวันนี้ เก่งมาก ๆ ครับ" : "ขอบคุณทุกคนสำหรับวันนี้ครับ",
+    emoji: hasPending ? "🌙" : "✨",
+    rows: [
+      infoRow("วันที่", formatThaiDate(record.date), true),
+      infoRow("เวลาเตือน", record.reminderTime || "-", false),
+      infoRow("สถานะ", hasPending ? `${record.pendingCount}/${record.totalCheckedIn} ยังไม่ออก` : "ทุกคนออกครบแล้ว", true),
+    ],
+    note: hasPending
+      ? "ขอบคุณสำหรับความตั้งใจวันนี้นะครับ ก่อนกลับอย่าลืม Check out แล้วเดินทางกลับบ้านปลอดภัยครับ"
+      : "ขอบคุณทุกคนมากครับ ขอให้พักผ่อนให้เต็มที่ แล้วพบกันวันทำงานถัดไปครับ",
+    accentColor: hasPending ? colors.sky : colors.success,
+    heroImageUrl: heroImages.checkout,
+  }), options);
+}
+
+export async function notifyLineCheckIn(
+  record: LineAttendancePayload,
+  options: LinePushOptions = {},
+) {
+  return pushLine(makeLineCard({
     altText: `เช็คอิน: ${record.full_name}`,
-    title: "",
+    title: "CHECK IN",
     bigValue: "เช็คอินแล้ว",
     subtitle: "บันทึกการเข้างานเรียบร้อย",
-    emoji: "🌤️",
+    emoji: record.is_late ? "!" : "☀️",
     rows: [
       infoRow("ชื่อ", record.full_name, true),
       infoRow("วันที่", formatThaiDate(record.check_in_date)),
       infoRow("รูปแบบ", record.work_mode || "-"),
       infoRow("สถานที่", record.location_address || "-"),
     ],
-    note: "ขอให้วันนี้เป็นวันที่ดีในการฝึกงานนะครับ",
+    note: record.is_late
+      ? "บันทึกเช็คอินแล้ว วันนี้มาสายนิดหน่อย แต่ขอให้ทำงานราบรื่นนะครับ"
+      : "ขอให้วันนี้เป็นวันที่ดีในการฝึกงานนะครับ",
     accentColor: record.is_late ? colors.warning : colors.brand,
-  }));
+    heroImageUrl: heroImages.checkin,
+  }), options);
 }
 
-export async function notifyLineSiteVisit(record: LineSiteVisitPayload) {
-  return pushLine(makeCuteCard({
+export async function notifyLineSiteVisit(
+  record: LineSiteVisitPayload,
+  options: LinePushOptions = {},
+) {
+  return pushLine(makeLineCard({
     altText: `ไปไซต์งาน: ${record.full_name || "-"}`,
-    title: "",
-    bigValue: "นักศึกษาเพิ่มไซต์ระหว่างวัน",
-    subtitle: "",
+    title: "SITE VISIT",
+    bigValue: "เพิ่มไซต์ระหว่างวัน",
+    subtitle: "บันทึกสถานที่ปฏิบัติงานเพิ่มเติม",
     emoji: "📍",
     compactHeader: true,
     rows: [
@@ -305,19 +379,46 @@ export async function notifyLineSiteVisit(record: LineSiteVisitPayload) {
       infoRow("สถานที่", record.location_address || record.site_name || "-"),
     ],
     note: "เดินทางปลอดภัยและขอให้ทำงานราบรื่นนะครับ",
-  }));
+    accentColor: colors.purple,
+    heroImageUrl: heroImages.site,
+  }), options);
 }
 
-export async function notifyLineLeaveRequest(_record: LineLeaveRequestPayload) {
-  return pushLine(makeCuteCard({
-    altText: "คำขอลาใหม่",
-    title: "คำขอลาใหม่",
-    bigValue: "มีคำขอลา",
+export async function notifyLineLeaveRequest(record: LineLeaveRequestPayload) {
+  return pushLine(makeLineCard({
+    altText: `คำขอลาใหม่: ${record.full_name}`,
+    title: "LEAVE REQUEST",
+    bigValue: "มีคำขอลาใหม่",
     subtitle: "รอผู้ดูแลระบบตรวจสอบในระบบ",
     emoji: "📝",
     rows: [
-      infoRow("สถานะ", "มีคำขอลาใหม่", true),
+      infoRow("สถานะ", "รอตรวจสอบ", true),
     ],
-    note: "รายละเอียดอยู่ในระบบ",
+    note: "รายละเอียดคำขอลาอยู่ในระบบ",
+    accentColor: colors.brand,
+    heroImageUrl: heroImages.leave,
   }));
+}
+
+export async function notifyLineLeaveReview(
+  record: LineLeaveRequestPayload,
+  options: LinePushOptions = {},
+) {
+  const approved = record.status === "approved";
+  const accent = approved ? colors.success : colors.danger;
+  const rows: FlexComponent[] = [];
+
+  if (record.reviewed_by) rows.push(infoRow("ผู้อนุมัติ", record.reviewed_by, false));
+  if (rows.length === 0) rows.push(infoRow("สถานะ", approved ? "อนุมัติแล้ว" : "ไม่อนุมัติ", true));
+
+  return pushLine(makeLineCard({
+    altText: approved ? `อนุมัติการลา: ${record.full_name}` : `ผลการพิจารณาการลา: ${record.full_name}`,
+    title: "LEAVE REQUEST",
+    bigValue: approved ? "อนุมัติการลาแล้ว" : "ไม่อนุมัติการลา",
+    subtitle: approved ? "รับทราบผลการอนุมัติเรียบร้อยครับ" : "มีผลการพิจารณาคำขอลาแล้วครับ",
+    emoji: approved ? "✅" : "!",
+    rows,
+    accentColor: accent,
+    heroImageUrl: heroImages.leave,
+  }), options);
 }
