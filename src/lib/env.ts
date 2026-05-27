@@ -12,10 +12,10 @@ function requiredEnv(key: string) {
 
 const vercelUrl = readEnv("VERCEL_URL");
 const nextAuthUrl = readEnv("NEXTAUTH_URL");
-const publicAppUrlFallback = vercelUrl
-  ? `https://${vercelUrl}`
-  : nextAuthUrl.startsWith("https://")
+const publicAppUrlFallback = nextAuthUrl.startsWith("https://")
     ? nextAuthUrl
+  : vercelUrl
+    ? `https://${vercelUrl}`
     : "https://pmc-intern.vercel.app";
 
 export const env = {
