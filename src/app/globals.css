@@ -690,6 +690,7 @@ input,
 select,
 textarea {
   width: 100%;
+  max-width: 100%;
   min-height: 48px;
   border: 1px solid #cfd8e6;
   border-radius: 12px;
@@ -3190,8 +3191,18 @@ th {
 }
 
 @media (max-width: 640px) {
+  html,
+  body {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
   .workspace {
-    padding: 18px;
+    width: 100%;
+    max-width: 100vw;
+    padding: 16px 14px 22px;
+    gap: 16px;
+    overflow: hidden;
   }
 
   .page-toast {
@@ -3204,6 +3215,7 @@ th {
     display: grid;
     grid-template-columns: auto 1fr auto;
     align-items: start;
+    gap: 12px;
   }
 
   .mobile-sidebar-toggle {
@@ -3242,6 +3254,18 @@ th {
   .topbar > div:not(.topbar-actions) {
     grid-column: 1 / -1;
     grid-row: 2;
+    min-width: 0;
+  }
+
+  .topbar h1 {
+    font-size: 28px;
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+  }
+
+  .topbar p {
+    line-height: 1.42;
+    overflow-wrap: anywhere;
   }
 
   .notification-panel {
@@ -3307,14 +3331,243 @@ th {
 
   .filter-panel {
     grid-template-columns: 1fr;
+    padding: 14px;
+    min-width: 0;
+  }
+
+  .attendance-range-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .attendance-range-tab {
+    min-width: 0;
+    padding: 0 8px;
   }
 
   .chatbot-test-grid {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-metrics,
   .report-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .timeline-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-today-table,
+  .attendance-table-card,
+  .report-table-card,
+  .internship-table-card {
+    overflow: visible;
+  }
+
+  .dashboard-today-table table,
+  .attendance-table-card table,
+  .report-table-card table,
+  .internship-table-card table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+  }
+
+  .dashboard-today-table thead,
+  .attendance-table-card thead,
+  .report-table-card thead,
+  .internship-table-card thead {
+    display: none;
+  }
+
+  .dashboard-today-table tbody,
+  .attendance-table-card tbody,
+  .report-table-card tbody,
+  .internship-table-card tbody {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+    background: #f8fafc;
+  }
+
+  .dashboard-today-table tr,
+  .attendance-table-card tr,
+  .report-table-card tr,
+  .internship-table-card tr {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  }
+
+  .dashboard-today-table td,
+  .attendance-table-card td,
+  .report-table-card td,
+  .internship-table-card td {
+    position: relative;
+    display: block;
+    min-width: 0;
+    min-height: 22px;
+    padding: 0 0 0 118px;
+    border-bottom: 0;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    text-align: right;
+  }
+
+  .dashboard-today-table td::before,
+  .attendance-table-card td::before,
+  .report-table-card td::before,
+  .internship-table-card td::before {
+    color: var(--muted);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 104px;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.35;
+    text-align: left;
+  }
+
+  .dashboard-today-table td strong,
+  .attendance-table-card td strong,
+  .report-table-card td strong,
+  .internship-table-card td strong,
+  .dashboard-today-table td small,
+  .attendance-table-card td small,
+  .report-table-card td small,
+  .internship-table-card td small {
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  .dashboard-today-table .chip,
+  .attendance-table-card .chip,
+  .internship-table-card .chip {
+    justify-self: end;
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .attendance-table-card .location-cell {
+    max-width: none;
+  }
+
+  .attendance-table-card .row-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .dashboard-today-table td:nth-child(1)::before,
+  .attendance-table-card td:nth-child(1)::before {
+    content: "วันที่";
+  }
+
+  .dashboard-today-table td:nth-child(2)::before,
+  .attendance-table-card td:nth-child(2)::before {
+    content: "นักศึกษา";
+  }
+
+  .dashboard-today-table td:nth-child(3)::before,
+  .attendance-table-card td:nth-child(3)::before,
+  .internship-table-card td:nth-child(3)::before {
+    content: "แผนก";
+  }
+
+  .dashboard-today-table td:nth-child(4)::before,
+  .attendance-table-card td:nth-child(5)::before {
+    content: "เช็คอิน";
+  }
+
+  .dashboard-today-table td:nth-child(5)::before,
+  .attendance-table-card td:nth-child(6)::before {
+    content: "เช็คเอาท์";
+  }
+
+  .dashboard-today-table td:nth-child(6)::before,
+  .attendance-table-card td:nth-child(7)::before {
+    content: "ชั่วโมง";
+  }
+
+  .dashboard-today-table td:nth-child(7)::before,
+  .attendance-table-card td:nth-child(8)::before,
+  .internship-table-card td:nth-child(8)::before {
+    content: "สถานะ";
+  }
+
+  .attendance-table-card td:nth-child(4)::before {
+    content: "สถานที่";
+  }
+
+  .attendance-table-card td:nth-child(9)::before {
+    content: "หลักฐาน";
+  }
+
+  .report-table-card td:nth-child(1)::before {
+    content: "กลุ่ม";
+  }
+
+  .report-table-card td:nth-child(2)::before {
+    content: "จำนวนคน";
+  }
+
+  .report-table-card td:nth-child(3)::before {
+    content: "เช็คเอาท์แล้ว";
+  }
+
+  .report-table-card td:nth-child(4)::before {
+    content: "วันที่ลงเวลา";
+  }
+
+  .report-table-card td:nth-child(5)::before {
+    content: "จำนวนรายการ";
+  }
+
+  .report-table-card td:nth-child(6)::before {
+    content: "เช็คอินล่าช้า";
+  }
+
+  .report-table-card td:nth-child(7)::before {
+    content: "ชั่วโมงรวม";
+  }
+
+  .report-table-card td:nth-child(8)::before {
+    content: "ช่วงวันที่";
+  }
+
+  .internship-table-card td:nth-child(1)::before {
+    content: "นักศึกษา";
+  }
+
+  .internship-table-card td:nth-child(2)::before {
+    content: "รหัส";
+  }
+
+  .internship-table-card td:nth-child(4)::before {
+    content: "วันเริ่ม";
+  }
+
+  .internship-table-card td:nth-child(5)::before {
+    content: "วันสิ้นสุด";
+  }
+
+  .internship-table-card td:nth-child(6)::before {
+    content: "เวลาฝึกทั้งหมด";
+  }
+
+  .internship-table-card td:nth-child(7)::before {
+    content: "เหลืออีก";
   }
 
   .student-location-map {

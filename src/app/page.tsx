@@ -2699,7 +2699,7 @@ function DashboardPanel({
         <span>อัปเดตล่าสุด {latestUpdate}</span>
       </div>
 
-      <section className="table-card">
+      <section className="table-card dashboard-today-table">
         <table>
           <thead>
             <tr>
@@ -2970,7 +2970,7 @@ function ReportsPanel({
         <div><span>เช็คอินล่าช้า</span><strong>{summary.late}</strong></div>
       </section>
 
-      <section className="table-card">
+      <section className="table-card report-table-card">
         <table>
           <thead>
             <tr>
@@ -3246,7 +3246,7 @@ function AttendanceTable({
   onDelete: (id: string) => void;
 }) {
   return (
-    <section className="table-card">
+    <section className="table-card attendance-table-card">
       <table>
         <thead>
           <tr>
