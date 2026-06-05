@@ -3123,17 +3123,28 @@ th {
     grid-template-columns: 1fr 1fr;
   }
 
-  .attendance-filter,
-  .audit-filter,
-  .leave-filter,
+  .filter-panel.attendance-filter,
+  .filter-panel.audit-filter,
+  .filter-panel.report-filter,
+  .filter-panel.leave-filter,
   .leave-form-grid,
-  .report-filter,
   .chatbot-grid,
   .holiday-form,
   .checkin-layout,
   .dashboard-grid,
   .intern-dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .filter-panel {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .filter-panel > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .account-grid {
@@ -3335,16 +3346,33 @@ th {
     min-width: 0;
   }
 
+  .filter-panel.attendance-filter {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .filter-panel.attendance-filter > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .attendance-range-tabs {
     width: 100%;
+    max-width: 100%;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 4px;
+    min-width: 0;
   }
 
   .attendance-range-tab {
     min-width: 0;
     padding: 0 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .chatbot-test-grid {
@@ -3371,6 +3399,8 @@ th {
   .attendance-table-card table,
   .report-table-card table,
   .internship-table-card table {
+    display: block;
+    width: 100%;
     min-width: 0;
     border-collapse: separate;
     border-spacing: 0;
@@ -3389,6 +3419,7 @@ th {
   .report-table-card tbody,
   .internship-table-card tbody {
     display: grid;
+    width: 100%;
     gap: 12px;
     padding: 12px;
     background: #f8fafc;
@@ -3399,6 +3430,7 @@ th {
   .report-table-card tr,
   .internship-table-card tr {
     display: grid;
+    width: 100%;
     gap: 8px;
     padding: 14px;
     border: 1px solid var(--line);
@@ -3412,30 +3444,52 @@ th {
   .report-table-card td,
   .internship-table-card td {
     position: relative;
-    display: block;
+    display: grid;
+    grid-template-columns: minmax(86px, 30%) minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: start;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     min-height: 22px;
-    padding: 0 0 0 118px;
+    padding: 0;
     border-bottom: 0;
     white-space: normal;
     overflow-wrap: break-word;
     word-break: normal;
-    text-align: right;
+    text-align: left;
+  }
+
+  .dashboard-today-table tbody td,
+  .attendance-table-card tbody td,
+  .report-table-card tbody td,
+  .internship-table-card tbody td {
+    width: 100% !important;
+  }
+
+  .internship-table-card td {
+    grid-template-columns: 1fr;
+    row-gap: 5px;
   }
 
   .dashboard-today-table td::before,
   .attendance-table-card td::before,
   .report-table-card td::before,
   .internship-table-card td::before {
+    grid-column: 1;
+    grid-row: 1 / span 20;
     color: var(--muted);
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 104px;
+    position: static;
+    width: auto;
     font-size: 13px;
     font-weight: 900;
     line-height: 1.35;
     text-align: left;
+  }
+
+  .internship-table-card td::before {
+    grid-row: auto;
+    font-size: 12px;
   }
 
   .dashboard-today-table td strong,
@@ -3451,10 +3505,32 @@ th {
     word-break: normal;
   }
 
+  .dashboard-today-table td > *,
+  .attendance-table-card td > *,
+  .report-table-card td > *,
+  .internship-table-card td > * {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  .internship-table-card td > * {
+    grid-column: 1;
+  }
+
+  .internship-table-card .timeline-student-cell strong {
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .internship-table-card .timeline-student-cell small {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
   .dashboard-today-table .chip,
   .attendance-table-card .chip,
   .internship-table-card .chip {
-    justify-self: end;
+    justify-self: start;
     max-width: 100%;
     white-space: normal;
     text-align: center;
@@ -3465,7 +3541,7 @@ th {
   }
 
   .attendance-table-card .row-actions {
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-wrap: wrap;
   }
 
