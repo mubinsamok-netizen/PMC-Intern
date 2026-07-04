@@ -2401,12 +2401,116 @@ textarea {
   white-space: normal;
 }
 
+.location-cell strong,
+.location-cell span {
+  display: block;
+  line-height: 1.35;
+}
+
+.location-cell strong {
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.location-cell span {
+  color: #334155;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
 .location-cell a {
   display: block;
   width: fit-content;
   margin-top: 4px;
   color: var(--brand);
   font-weight: 900;
+}
+
+.site-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.site-summary span {
+  width: fit-content;
+  min-height: 28px;
+  padding: 5px 9px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.evidence-inline {
+  display: grid;
+  gap: 8px;
+  min-width: 190px;
+}
+
+.evidence-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.evidence-links a {
+  min-height: 32px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.evidence-links .evidence-map-link {
+  color: var(--brand);
+  background: #fff1ef;
+  border-color: #f7c5bd;
+}
+
+.evidence-inline .row-actions {
+  flex-wrap: wrap;
+}
+
+.evidence-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.evidence-summary span {
+  min-height: 24px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.evidence-summary span.ok {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 td small {
@@ -2593,8 +2697,9 @@ td small {
   z-index: 30;
   display: grid;
   place-items: center;
-  padding: 22px;
+  padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
   background: rgba(2, 6, 23, 0.56);
+  overflow: hidden;
 }
 
 .evidence-modal {
@@ -2701,6 +2806,9 @@ td small {
 
 .leave-review-modal {
   width: min(620px, 100%);
+  max-height: min(720px, calc(100svh - 28px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   padding: 0;
   overflow: hidden;
 }
@@ -2782,6 +2890,9 @@ td small {
   padding: 22px;
   display: grid;
   gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .leave-review-summary {
@@ -2838,7 +2949,9 @@ td small {
 }
 
 .leave-review-actions {
-  padding-top: 4px;
+  padding: 14px 22px calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: #fff;
 }
 
 .success-action {
@@ -3545,6 +3658,15 @@ th {
     flex-wrap: wrap;
   }
 
+  .attendance-table-card .evidence-inline {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .attendance-table-card .evidence-links {
+    width: 100%;
+  }
+
   .dashboard-today-table td:nth-child(1)::before,
   .attendance-table-card td:nth-child(1)::before {
     content: "วันที่";
@@ -3662,21 +3784,64 @@ th {
     flex-direction: column-reverse;
   }
 
+  .leave-review-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100svh - 16px);
+  }
+
   .leave-review-header {
-    padding: 22px 18px;
-    grid-template-columns: 1fr;
-    text-align: center;
-    justify-items: center;
+    min-height: auto;
+    padding: 16px;
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+    gap: 10px;
+    text-align: left;
+    justify-items: stretch;
+  }
+
+  .leave-review-icon {
+    width: 46px;
+  }
+
+  .leave-review-header h2 {
+    font-size: 22px;
+  }
+
+  .leave-review-header p {
+    font-size: 13px;
+    line-height: 1.35;
   }
 
   .leave-review-close {
     position: static;
-    width: fit-content;
-    margin-top: 2px;
+    align-self: start;
+    min-height: 34px;
+    padding: 0 10px;
+    margin-top: 0;
+  }
+
+  .leave-review-body {
+    padding: 16px;
   }
 
   .leave-review-summary {
     grid-template-columns: 1fr;
+  }
+
+  .leave-review-summary div,
+  .leave-review-reason {
+    padding: 12px;
+  }
+
+  .leave-review-note textarea {
+    min-height: 88px;
+  }
+
+  .leave-review-actions {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .leave-review-actions button {
+    width: 100%;
   }
 
   .sidebar-brand img {

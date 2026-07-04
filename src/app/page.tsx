@@ -575,6 +575,7 @@ export default function Home() {
   const [reportRows, setReportRows] = useState<Attendance[]>([]);
   const [todaySiteVisits, setTodaySiteVisits] = useState<SiteVisit[]>([]);
   const [evidenceSiteVisits, setEvidenceSiteVisits] = useState<SiteVisit[]>([]);
+  const [attendanceSiteVisits, setAttendanceSiteVisits] = useState<Record<string, SiteVisit[]>>({});
   const [dashboardUsers, setDashboardUsers] = useState<User[]>([]);
   const [dashboardRows, setDashboardRows] = useState<Attendance[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -852,9 +853,11 @@ export default function Home() {
     params.set("page", String(page));
     params.set("pageSize", "50");
     const data = await apiJson(`/api/attendance?${params.toString()}`);
-    setAttendance(data.rows);
+    const rows = data.rows || [];
+    setAttendance(rows);
     setAttendancePagination(data.pagination || emptyPagination);
     setAttendancePage(data.pagination?.page || page);
+    loadAttendanceSiteVisits(rows).catch(() => setAttendanceSiteVisits({}));
   }
 
   function applyAttendanceRange(range: AttendanceQuickRange) {
@@ -1007,6 +1010,29 @@ export default function Home() {
     const params = new URLSearchParams({ attendance_id: attendanceId });
     const data = await apiJson(`/api/site-visits?${params.toString()}`);
     return data.rows || [];
+  }
+
+  async function loadAttendanceSiteVisits(rows: Attendance[]) {
+    if (!authHeaders || rows.length === 0) {
+      setAttendanceSiteVisits({});
+      return;
+    }
+
+    const ids = rows.map((row) => row.id).filter(Boolean);
+    if (ids.length === 0) {
+      setAttendanceSiteVisits({});
+      return;
+    }
+
+    const params = new URLSearchParams({ attendance_ids: ids.join(",") });
+    const data = await apiJson(`/api/site-visits?${params.toString()}`);
+    const siteRows = (data.rows || []) as SiteVisit[];
+    const grouped = siteRows.reduce<Record<string, SiteVisit[]>>((acc, row) => {
+      if (!row.attendance_id) return acc;
+      acc[row.attendance_id] = [...(acc[row.attendance_id] || []), row];
+      return acc;
+    }, {});
+    setAttendanceSiteVisits(grouped);
   }
 
   async function loadCheckInData() {
@@ -2051,6 +2077,7 @@ export default function Home() {
             </section>
             <AttendanceTable
               rows={attendance}
+              siteVisitsByAttendance={attendanceSiteVisits}
               isAdmin={me.role === "admin"}
               onEvidence={openEvidence}
               onEdit={openCorrection}
@@ -2117,23 +2144,24 @@ export default function Home() {
                 />
               </label>
 
-              <div className="modal-actions leave-review-actions">
-                <button type="button" className="ghost" onClick={() => setLeaveReview(null)} disabled={leaveReviewSaving}>
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  className={leaveReview.status === "approved" ? "success-action" : "danger-action"}
-                  disabled={leaveReviewSaving}
-                >
-                  {leaveReview.status === "approved" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-                  {leaveReviewSaving
-                    ? "กำลังบันทึก..."
-                    : leaveReview.status === "approved"
-                      ? "อนุมัติคำขอลา"
-                      : "บันทึกไม่อนุมัติ"}
-                </button>
-              </div>
+            </div>
+
+            <div className="modal-actions leave-review-actions">
+              <button type="button" className="ghost" onClick={() => setLeaveReview(null)} disabled={leaveReviewSaving}>
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                className={leaveReview.status === "approved" ? "success-action" : "danger-action"}
+                disabled={leaveReviewSaving}
+              >
+                {leaveReview.status === "approved" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+                {leaveReviewSaving
+                  ? "กำลังบันทึก..."
+                  : leaveReview.status === "approved"
+                    ? "อนุมัติคำขอลา"
+                    : "บันทึกไม่อนุมัติ"}
+              </button>
             </div>
           </form>
         </div>
@@ -3234,12 +3262,14 @@ function SiteVisitList({ rows, emptyText }: { rows: SiteVisit[]; emptyText: stri
 
 function AttendanceTable({
   rows,
+  siteVisitsByAttendance,
   isAdmin,
   onEvidence,
   onEdit,
   onDelete,
 }: {
   rows: Attendance[];
+  siteVisitsByAttendance: Record<string, SiteVisit[]>;
   isAdmin: boolean;
   onEvidence: (row: Attendance) => void;
   onEdit: (row: Attendance) => void;
@@ -3262,25 +3292,63 @@ function AttendanceTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td>{row.check_in_date}</td>
-              <td><strong>{row.full_name}</strong><small>{row.employee_code || row.intern_code}</small></td>
-              <td>{row.department || "-"}</td>
-              <td className="location-cell">{row.location_address || "-"}{mapUrl(row) && <a href={mapUrl(row)} target="_blank" rel="noreferrer">แผนที่</a>}</td>
-              <td>{row.check_in_time || "-"}</td>
-              <td>{row.check_out_time || "-"}</td>
-              <td>{row.total_hours_display || "-"}</td>
-              <td><span className={statusChipClass(row)}>{statusText(row)}</span></td>
-              <td>
-                <div className="row-actions">
-                  <button className="icon-button" onClick={() => onEvidence(row)} title="ตรวจหลักฐาน"><Eye size={18} /></button>
-                  {isAdmin && <button className="icon-button" onClick={() => onEdit(row)} title="แก้ไข"><Pencil size={18} /></button>}
-                  {isAdmin && <button className="icon-button danger" onClick={() => onDelete(row.id)} title="ลบ"><Trash2 size={18} /></button>}
-                </div>
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const mapHref = mapUrl(row);
+            const checkinSelfie = row.checkin_selfie_url || row.selfie_url || "";
+            const checkoutSelfie = row.checkout_selfie_url || "";
+            const siteVisits = siteVisitsByAttendance[row.id] || [];
+            const siteNames = Array.from(new Set(siteVisits.map((visit) => visit.site_name || visit.location_address).filter(Boolean)));
+            const visibleSiteNames = siteNames.slice(0, 3);
+            const extraSiteCount = Math.max(0, siteNames.length - visibleSiteNames.length);
+            const hasInlineEvidence = Boolean(mapHref || checkinSelfie || checkoutSelfie);
+
+            return (
+              <tr key={row.id}>
+                <td>{row.check_in_date}</td>
+                <td><strong>{row.full_name}</strong><small>{row.employee_code || row.intern_code}</small></td>
+                <td>{row.department || "-"}</td>
+                <td className="location-cell">
+                  <strong>{row.work_mode || "-"}</strong>
+                  <span>{row.location_address || "-"}</span>
+                  {visibleSiteNames.length > 0 && (
+                    <div className="site-summary" aria-label="ไซต์ที่ไป">
+                      {visibleSiteNames.map((name) => <span key={name}>{name}</span>)}
+                      {extraSiteCount > 0 && <span>+{extraSiteCount} ไซต์</span>}
+                    </div>
+                  )}
+                  {mapHref && <a href={mapHref} target="_blank" rel="noreferrer">แผนที่เช็คอิน</a>}
+                </td>
+                <td>{row.check_in_time || "-"}</td>
+                <td>{row.check_out_time || "-"}</td>
+                <td>{row.total_hours_display || "-"}</td>
+                <td><span className={statusChipClass(row)}>{statusText(row)}</span></td>
+                <td>
+                  <div className="evidence-inline">
+                    {hasInlineEvidence ? (
+                      <div className="evidence-links" aria-label="หลักฐานในแถว">
+                        {checkinSelfie && <a href={checkinSelfie} target="_blank" rel="noreferrer"><Camera size={14} /> รูปเข้า</a>}
+                        {checkoutSelfie && <a href={checkoutSelfie} target="_blank" rel="noreferrer"><Camera size={14} /> รูปออก</a>}
+                        {mapHref && <a className="evidence-map-link" href={mapHref} target="_blank" rel="noreferrer"><MapPin size={14} /> แผนที่</a>}
+                      </div>
+                    ) : (
+                      <span className="muted-small">ไม่มีรูป/พิกัด</span>
+                    )}
+                    <div className="evidence-summary">
+                      <span className={checkinSelfie ? "ok" : ""}>เข้า</span>
+                      <span className={checkoutSelfie ? "ok" : ""}>ออก</span>
+                      <span className={mapHref ? "ok" : ""}>พิกัด</span>
+                      {siteVisits.length > 0 && <span className="ok">ไซต์ {siteVisits.length}</span>}
+                    </div>
+                    <div className="row-actions">
+                      <button className="icon-button" onClick={() => onEvidence(row)} title="ตรวจหลักฐาน"><Eye size={18} /></button>
+                      {isAdmin && <button className="icon-button" onClick={() => onEdit(row)} title="แก้ไข"><Pencil size={18} /></button>}
+                      {isAdmin && <button className="icon-button danger" onClick={() => onDelete(row.id)} title="ลบ"><Trash2 size={18} /></button>}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       {rows.length === 0 && <div className="empty">ยังไม่มีข้อมูล หรือยังไม่ได้กดกรอง</div>}

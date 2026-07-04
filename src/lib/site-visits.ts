@@ -69,6 +69,10 @@ export async function listSiteVisits(sessionUser: SessionUser, filters: Record<s
 
   if (sessionUser.role !== "admin") scoped = scoped.filter((row) => row.user_id === sessionUser.id);
   if (filters.attendance_id) scoped = scoped.filter((row) => row.attendance_id === filters.attendance_id);
+  if (filters.attendance_ids) {
+    const attendanceIds = new Set(filters.attendance_ids.split(",").map((id) => id.trim()).filter(Boolean));
+    scoped = scoped.filter((row) => attendanceIds.has(row.attendance_id));
+  }
   if (filters.date) scoped = scoped.filter((row) => normalizeDate(row.check_in_date) === filters.date);
   if (filters.user_id && sessionUser.role === "admin") scoped = scoped.filter((row) => row.user_id === filters.user_id);
 

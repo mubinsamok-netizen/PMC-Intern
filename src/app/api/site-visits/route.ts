@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const rows = await listSiteVisits(user, {
     attendance_id: url.searchParams.get("attendance_id") || "",
+    attendance_ids: url.searchParams.get("attendance_ids") || "",
     date: url.searchParams.get("date") || "",
     user_id: url.searchParams.get("user_id") || "",
   });
